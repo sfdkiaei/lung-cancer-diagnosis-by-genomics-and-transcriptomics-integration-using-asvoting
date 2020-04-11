@@ -1,4 +1,5 @@
 import json
+import logging
 
 import numpy as np
 import pandas as pd
@@ -22,14 +23,23 @@ np.random.seed(110)
 
 
 class Analysis:
-    def __init__(self):
+    def __init__(self):  # fv: Feature Vector
+        self.fv_maf = None
         self.fv_pca = None
         self.fv_kernel_pca = None
         self.fv_sdae_train = None
         self.fv_sdae_val = None
         self.fv_sdae_test = None
+        self.fv_gaussian_process = None
+        self.fv_random_forest = None
+        self.fv_mlp = None
+        self.fv_complement_nb = None
+        self.fv_gradient_boosting = None
 
-    def pca(self, X, y=None, n_components=2):
+    def MAFGenes(self):
+        pass
+
+    def PCA(self, X, y=None, n_components=2):
         """
 
         :param X:
@@ -40,7 +50,7 @@ class Analysis:
         pca = PCA(n_components=n_components)
         self.fv_pca = pca.fit_transform(X, y)
 
-    def kernel_pca(self, X, y=None, n_components=2, kernel="rbf"):
+    def KernelPCA(self, X, y=None, n_components=2, kernel="rbf"):
         """
 
         :param X:
@@ -52,7 +62,7 @@ class Analysis:
         transformer = KernelPCA(n_components=n_components, kernel=kernel)
         self.fv_kernel_pca = transformer.fit_transform(X, y)
 
-    def sdae(self, X_train, X_test=None, X_validation=None, y=None, n_layers=2, n_hid=[10], dropout=[0.1], n_epoch=2,
+    def SDAE(self, X_train, X_test=None, X_validation=None, y=None, n_layers=2, n_hid=[10], dropout=[0.1], n_epoch=2,
              get_enc_model=False, write_model=False, dir_out='../output/'):
         """
         train a stacked denoising autoencoder and get the trained model,
@@ -72,12 +82,27 @@ class Analysis:
         """
         cur_sdae = StackedDenoisingAE(n_layers=n_layers, n_hid=n_hid, dropout=dropout, nb_epoch=n_epoch)
         model, (self.fv_sdae_train, self.fv_sdae_val, self.fv_sdae_test), \
-        recon_mse = cur_sdae.get_pretrained_sda(X,
+        recon_mse = cur_sdae.get_pretrained_sda(X_train,
                                                 X_validation,
                                                 X_test,
                                                 get_enc_model=get_enc_model,
                                                 write_model=write_model,
                                                 dir_out=dir_out)
+
+    def GaussianProcessClassifier(self):
+        pass
+
+    def RandomForestClassifier(self):
+        pass
+
+    def MLPClassifier(self):
+        pass
+
+    def ComplementNB(self):
+        pass
+
+    def GradientBoostingClassifier(self):
+        pass
 
 
 def createSampleDataFrame(files_exp, save=False, save_name="fullData", is_tumor=None):
@@ -107,6 +132,7 @@ def createSampleDataFrame(files_exp, save=False, save_name="fullData", is_tumor=
 
     df_full = reduce(lambda left, right: pd.merge(left, right, on=['UUID'], how='outer'), data_frames)
     df_full = df_full.set_index('UUID').T
+    df_full.rename(columns=lambda x: x.split('.')[0], inplace=True)  # remove numbers after '.' for genes
     if is_tumor is not None:
         df_full['isTumor'] = [is_tumor] * df_full.shape[0]  # primary tumor / solid tissue normal
 
@@ -148,20 +174,75 @@ def createSampleCaseMapper(mapper_file_path, save=False, save_name="sampleCaseMa
     return df, unusual_sample_ids
 
 
+def loadMAF(file_path, maf_column_names=None, save=False, save_name="maf"):
+    """
+    Load MAF file into DataFrame and save it as .pkl file.
+    selecting desired columns is optional
+    :param file_path: String. maf file path
+    :param columns: String of excel columns. example: 'A:C,E,H'
+    :param save: Boolean
+    :param save_name: path + name of saving file
+    :return: Sample UUID and Case Id mapper dataFrame. Columns: [UUID, CaseId]
+    """
+    if maf_column_names is None:
+        # columns = get all column names
+        return None
+    df = pd.read_csv(file_path, skip_blank_lines=True, low_memory=False, header=1, comment="#", sep="\t")
+    for col in df.columns:
+        if col not in maf_column_names:
+            del df[col]
+
+    print("Final data frame size:", df.shape)
+    print("This has", df.isna().sum().sum(), "NaN values.")
+    print(df.isna)
+    print(df.head())
+    if save:
+        df.to_pickle(save_name + ".pkl")
+    return df
+
+
+def printRowsContainingNan(dataFrame):
+    df1 = dataFrame[dataFrame.isna().any(axis=1)]
+    print(df1.to_string())
+
+
 data_path = 'Data/'
 path = data_path + 'LUAD/TP - HTSeq - FPKM-UQ/'
 normal = 'solid tissue normal/'
 tumor = 'primary tumor/'
 mapper_path = data_path + 'mapping case id - sample UUID.json'
 mapper_path_save = data_path
+maf_path = data_path + 'LUAD/SNV - maf - muse/6f5cde97-d259-414f-8122-6d0d66f49b74/' \
+                       'TCGA.LUAD.muse.6f5cde97-d259-414f-8122-6d0d66f49b74.DR-10.0.somatic.maf'
+maf_column_names = [
+    'Hugo_Symbol',
+    'Entrez_Gene_Id',
+    'Tumor_Sample_UUID',
+    'Gene',
+    'IMPACT',
+    'case_id'
+]
+maf_path_save = data_path + 'LUAD/'
 # createSampleDataFrame(path + normal + '*/*.txt.gz', True, path + normal + 'data', is_tumor=False)
 # createSampleDataFrame(path + tumor + '*/*.txt.gz', True, path + tumor + 'data', is_tumor=True)
 # createSampleCaseMapper(mapper_path, True, mapper_path_save + 'sampleCaseMapper')
+# loadMAF(maf_path, maf_column_names, True, maf_path_save + 'maf')
 df_normal = pd.read_pickle(path + normal + 'data.pkl')
 df_tumor = pd.read_pickle(path + tumor + 'data.pkl')
-mapper = pd.read_pickle(mapper_path_save + 'sampleCaseMapper.pkl')
+df_tp = df_tumor.append(df_normal)  # Transcriptome Profiling
+mapper = pd.read_pickle(mapper_path_save + 'sampleCaseMapper.pkl')  # Sample UUID - Case Id mapper
+df_maf = pd.read_pickle(maf_path_save + 'maf.pkl')
+df_maf = df_maf[df_maf['Gene'].notnull()]  # drop rows which gene is none
 
-print(mapper)
+# X = df_tp.iloc[:, :-1]
+# y = df_tp.iloc[:, -1]
+# X_train, X_test, y_train, y_test = train_test_split(X, y, shuffle=True, random_state=110, test_size=0.3)
+# print(X_train.columns)
+# print(X_train)
+# print(y_train)
+
+# X_train = X_train.astype('float32')
+# X_test = X_test.astype('float32')
 
 # plt.figure(figsize=(16, 8))
 # plt.plot(df_tumor.iloc[:, 1::].mean(axis=1))
@@ -174,32 +255,9 @@ print(mapper)
 # plt.savefig('Transcriptome - mean')
 # plt.show()
 
-# df_normal = df_normal.set_index('UUID').T
-# df_tumor = df_tumor.set_index('UUID').T
-
-df = df_tumor.append(df_normal)
-print(df)
-X = df.iloc[:, :-1]
-y = df.iloc[:, -1]
-
-# print(df)
-# print(df.isnull().sum().sum())
-
-X_train, X_test, y_train, y_test = train_test_split(X, y, shuffle=True, random_state=110, test_size=0.3)
-# print(X_train.columns)
-# print(X_train)
-# print(y_train)
-
-# X_train = X_train.astype('float32')
-# X_test = X_test.astype('float32')
-# X_train.reset_index(inplace=True)
-# X_test.reset_index(inplace=True)
-
-# print(X_train.values[0])
-
 # analyzer = Analysis()
-# analyzer.pca(X_train, y_train, 500)
-# analyzer.kernel_pca(X_train, y_train, 500, "rbf")
+# analyzer.PCA(X_train, y_train, 500)
+# analyzer.KernelPCA(X_train, y_train, 500, "rbf")
 # print(analyzer.fv_pca.shape)
 # print(analyzer.fv_kernel_pca.shape)
 # print('##################################')
@@ -211,9 +269,9 @@ X_train, X_test, y_train, y_test = train_test_split(X, y, shuffle=True, random_s
 # print(X_train.iloc[:, :2].values)
 # print('##################################')
 # print(X_train[:2])
-# analyzer.sdae(np.array(X_train.values[:4, :]), np.array(X_test.values[:2, :]), np.array(X_test.values[:2, :]))
-# analyzer.sdae(X_train.iloc[:, :4].values, X_test.iloc[:, :2].values, X_test.iloc[:, :2].values)
-# analyzer.sdae(X_train.iloc[:, :4], X_test.iloc[:, :2], X_test.iloc[:, :2])
+# analyzer.SDAE(np.array(X_train.values[:4, :]), np.array(X_test.values[:2, :]), np.array(X_test.values[:2, :]))
+# analyzer.SDAE(X_train.iloc[:, :4].values, X_test.iloc[:, :2].values, X_test.iloc[:, :2].values)
+# analyzer.SDAE(X_train.iloc[:, :4], X_test.iloc[:, :2], X_test.iloc[:, :2])
 # print(analyzer.fv_sdae_train.shape)
 # print(analyzer.fv_sdae_train)
 
