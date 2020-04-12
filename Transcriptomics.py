@@ -36,8 +36,29 @@ class Analysis:
         self.fv_complement_nb = None
         self.fv_gradient_boosting = None
 
-    def MAFGenes(self):
-        pass
+    @staticmethod
+    def getFrequentValues(df, column_name, n):
+        """
+        Get top n most frequent values in column_name
+        :param df:
+        :param column_name:
+        :param n:
+        :return:
+        """
+        return df[column_name].value_counts()[:n].index.tolist()
+
+    def MAFGenes(self, df, df_maf, size):
+        """
+
+        :param df: Transcriptome Profiling DataFrame
+        :param df_maf: MAF file DataFrame
+        :param size: number of genes
+        :return:
+        """
+        genes = self.getFrequentValues(df_maf, 'Gene', size)
+        self.fv_maf = df[genes]
+        print('[MAFGenes] fv_maf created with shape:', self.fv_maf.shape)
+        return self.fv_maf.shape
 
     def PCA(self, X, y=None, n_components=2):
         """
@@ -49,6 +70,8 @@ class Analysis:
         """
         pca = PCA(n_components=n_components)
         self.fv_pca = pca.fit_transform(X, y)
+        print('[PCA] fv_pca created with shape:', self.fv_pca.shape)
+        return self.fv_pca.shape
 
     def KernelPCA(self, X, y=None, n_components=2, kernel="rbf"):
         """
@@ -61,6 +84,8 @@ class Analysis:
         """
         transformer = KernelPCA(n_components=n_components, kernel=kernel)
         self.fv_kernel_pca = transformer.fit_transform(X, y)
+        print('[KernelPCA] fv_kernel_pca created with shape:', self.fv_kernel_pca.shape)
+        return self.fv_kernel_pca.shape
 
     def SDAE(self, X_train, X_test=None, X_validation=None, y=None, n_layers=2, n_hid=[10], dropout=[0.1], n_epoch=2,
              get_enc_model=False, write_model=False, dir_out='../output/'):
@@ -214,6 +239,7 @@ mapper_path = data_path + 'mapping case id - sample UUID.json'
 mapper_path_save = data_path
 maf_path = data_path + 'LUAD/SNV - maf - muse/6f5cde97-d259-414f-8122-6d0d66f49b74/' \
                        'TCGA.LUAD.muse.6f5cde97-d259-414f-8122-6d0d66f49b74.DR-10.0.somatic.maf'
+maf_path_save = data_path + 'LUAD/'
 maf_column_names = [
     'Hugo_Symbol',
     'Entrez_Gene_Id',
@@ -222,7 +248,6 @@ maf_column_names = [
     'IMPACT',
     'case_id'
 ]
-maf_path_save = data_path + 'LUAD/'
 # createSampleDataFrame(path + normal + '*/*.txt.gz', True, path + normal + 'data', is_tumor=False)
 # createSampleDataFrame(path + tumor + '*/*.txt.gz', True, path + tumor + 'data', is_tumor=True)
 # createSampleCaseMapper(mapper_path, True, mapper_path_save + 'sampleCaseMapper')
@@ -256,6 +281,7 @@ df_maf = df_maf[df_maf['Gene'].notnull()]  # drop rows which gene is none
 # plt.show()
 
 # analyzer = Analysis()
+# analyzer.MAFGenes(df_tp, df_maf, size=200)
 # analyzer.PCA(X_train, y_train, 500)
 # analyzer.KernelPCA(X_train, y_train, 500, "rbf")
 # print(analyzer.fv_pca.shape)
