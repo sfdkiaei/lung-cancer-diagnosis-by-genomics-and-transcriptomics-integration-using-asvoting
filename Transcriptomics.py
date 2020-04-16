@@ -1,133 +1,20 @@
+from sklearn import preprocessing
+from Methods import FeatureVectorGenerator
+from Methods import Analysis
 import json
 import logging
-
 import numpy as np
 import pandas as pd
 from matplotlib import pyplot as plt
 import glob
 from functools import reduce
 from sklearn.model_selection import train_test_split
-from sklearn.gaussian_process import GaussianProcessClassifier
-from sklearn.gaussian_process.kernels import RBF
-from sklearn.metrics import accuracy_score, log_loss
-from sklearn.naive_bayes import ComplementNB
-from sklearn.ensemble import RandomForestClassifier
-from sklearn.neural_network import MLPClassifier
-from sklearn.ensemble import GradientBoostingClassifier
-from sklearn.decomposition import PCA
-from sklearn.decomposition import KernelPCA
-from SDAE.sdae import StackedDenoisingAE
+from tqdm import tqdm
+import warnings
 
+warnings.filterwarnings("ignore")
 plt.style.use('ggplot')
 np.random.seed(110)
-
-
-class Analysis:
-    def __init__(self):  # fv: Feature Vector
-        self.fv_maf = None
-        self.fv_pca = None
-        self.fv_kernel_pca = None
-        self.fv_sdae_train = None
-        self.fv_sdae_val = None
-        self.fv_sdae_test = None
-        self.fv_gaussian_process = None
-        self.fv_random_forest = None
-        self.fv_mlp = None
-        self.fv_complement_nb = None
-        self.fv_gradient_boosting = None
-
-    @staticmethod
-    def getFrequentValues(df, column_name, n):
-        """
-        Get top n most frequent values in column_name
-        :param df:
-        :param column_name:
-        :param n:
-        :return:
-        """
-        return df[column_name].value_counts()[:n].index.tolist()
-
-    def MAFGenes(self, df, df_maf, size):
-        """
-
-        :param df: Transcriptome Profiling DataFrame
-        :param df_maf: MAF file DataFrame
-        :param size: number of genes
-        :return:
-        """
-        genes = self.getFrequentValues(df_maf, 'Gene', size)
-        self.fv_maf = df[genes]
-        print('[MAFGenes] fv_maf created with shape:', self.fv_maf.shape)
-        return self.fv_maf.shape
-
-    def PCA(self, X, y=None, n_components=2):
-        """
-
-        :param X:
-        :param y:
-        :param n_components: Number of components. If None, all non-zero components are kept.
-        :return: X_new array-like, shape (n_samples, n_components)
-        """
-        pca = PCA(n_components=n_components)
-        self.fv_pca = pca.fit_transform(X, y)
-        print('[PCA] fv_pca created with shape:', self.fv_pca.shape)
-        return self.fv_pca.shape
-
-    def KernelPCA(self, X, y=None, n_components=2, kernel="rbf"):
-        """
-
-        :param X:
-        :param y:
-        :param n_components: Number of components. If None, all non-zero components are kept.
-        :param kernel: “linear” | “poly” | “rbf” | “sigmoid” | “cosine” | “precomputed”
-        :return: X_new array-like, shape (n_samples, n_components)
-        """
-        transformer = KernelPCA(n_components=n_components, kernel=kernel)
-        self.fv_kernel_pca = transformer.fit_transform(X, y)
-        print('[KernelPCA] fv_kernel_pca created with shape:', self.fv_kernel_pca.shape)
-        return self.fv_kernel_pca.shape
-
-    def SDAE(self, X_train, X_test=None, X_validation=None, y=None, n_layers=2, n_hid=[10], dropout=[0.1], n_epoch=2,
-             get_enc_model=False, write_model=False, dir_out='../output/'):
-        """
-        train a stacked denoising autoencoder and get the trained model,
-        dense representations of the final hidden layer, and reconstruction mse
-        :param X_train:
-        :param X_test:
-        :param X_validation:
-        :param y:
-        :param n_layers:
-        :param n_hid:
-        :param dropout:
-        :param n_epoch:
-        :param get_enc_model:
-        :param write_model:
-        :param dir_out:
-        :return:
-        """
-        cur_sdae = StackedDenoisingAE(n_layers=n_layers, n_hid=n_hid, dropout=dropout, nb_epoch=n_epoch)
-        model, (self.fv_sdae_train, self.fv_sdae_val, self.fv_sdae_test), \
-        recon_mse = cur_sdae.get_pretrained_sda(X_train,
-                                                X_validation,
-                                                X_test,
-                                                get_enc_model=get_enc_model,
-                                                write_model=write_model,
-                                                dir_out=dir_out)
-
-    def GaussianProcessClassifier(self):
-        pass
-
-    def RandomForestClassifier(self):
-        pass
-
-    def MLPClassifier(self):
-        pass
-
-    def ComplementNB(self):
-        pass
-
-    def GradientBoostingClassifier(self):
-        pass
 
 
 def createSampleDataFrame(files_exp, save=False, save_name="fullData", is_tumor=None):
@@ -231,6 +118,37 @@ def printRowsContainingNan(dataFrame):
     print(df1.to_string())
 
 
+def analyzeData(df_tp, df_maf, normalize=True):
+    X = df_tp.iloc[:, :-1]
+    y = df_tp.iloc[:, -1]
+    if normalize:
+        min_max_scaler = preprocessing.MinMaxScaler()
+        X_scaled = min_max_scaler.fit_transform(X)
+        X = pd.DataFrame(X_scaled, columns=X.columns, index=X.index)
+    X_train, X_test, y_train, y_test = train_test_split(X, y, shuffle=True, random_state=110, test_size=0.3)
+    result = []
+
+    generator = FeatureVectorGenerator()
+    generator.MAFGenes(X_train, y_train, X_test, df_maf, size=200)
+    generator.PCA(X_train, y_train, X_test, 100)
+    generator.KernelPCA(X_train, y_train, X_test, 100, "rbf")
+    for key, value in tqdm(generator.getArrays().items()):
+        if value['train'] is not None:
+            # print('----------------', 'Feature Vector:', key)
+            analyzer = Analysis(verbose=False)
+            # analyzer.ComplementNB(value['train'], value['test'], y_train, y_test)
+            analyzer.GaussianProcessClassifier(value['train'], value['test'], y_train, y_test)
+            analyzer.RandomForestClassifier(value['train'], value['test'], y_train, y_test)
+            analyzer.GradientBoostingClassifier(value['train'], value['test'], y_train, y_test)
+            analyzer.MLPClassifier(value['train'], value['test'], y_train, y_test)
+            for classifier, score in analyzer.getAccuracies().items():
+                if score['acc'] is not None:
+                    result.append([key, classifier, (round(score['acc'], 4) * 100), round(score['log_loss'], 3)])
+                    # print(accuracy, classifier)
+    result = pd.DataFrame(result, columns=['Feature Vector', 'Classifier', 'Accuracy', 'Log Loss'])
+    print(result)
+
+
 data_path = 'Data/'
 path = data_path + 'LUAD/TP - HTSeq - FPKM-UQ/'
 normal = 'solid tissue normal/'
@@ -259,6 +177,8 @@ mapper = pd.read_pickle(mapper_path_save + 'sampleCaseMapper.pkl')  # Sample UUI
 df_maf = pd.read_pickle(maf_path_save + 'maf.pkl')
 df_maf = df_maf[df_maf['Gene'].notnull()]  # drop rows which gene is none
 
+analyzeData(df_tp, df_maf)
+
 # X = df_tp.iloc[:, :-1]
 # y = df_tp.iloc[:, -1]
 # X_train, X_test, y_train, y_test = train_test_split(X, y, shuffle=True, random_state=110, test_size=0.3)
@@ -280,13 +200,6 @@ df_maf = df_maf[df_maf['Gene'].notnull()]  # drop rows which gene is none
 # plt.savefig('Transcriptome - mean')
 # plt.show()
 
-# analyzer = Analysis()
-# analyzer.MAFGenes(df_tp, df_maf, size=200)
-# analyzer.PCA(X_train, y_train, 500)
-# analyzer.KernelPCA(X_train, y_train, 500, "rbf")
-# print(analyzer.fv_pca.shape)
-# print(analyzer.fv_kernel_pca.shape)
-# print('##################################')
 # print(X_train.values[:2, :])
 # print(np.array(X_train.values[:2, :]))
 # print(np.array(X_train.values[:2, 1::]))
@@ -295,58 +208,8 @@ df_maf = df_maf[df_maf['Gene'].notnull()]  # drop rows which gene is none
 # print(X_train.iloc[:, :2].values)
 # print('##################################')
 # print(X_train[:2])
-# analyzer.SDAE(np.array(X_train.values[:4, :]), np.array(X_test.values[:2, :]), np.array(X_test.values[:2, :]))
-# analyzer.SDAE(X_train.iloc[:, :4].values, X_test.iloc[:, :2].values, X_test.iloc[:, :2].values)
-# analyzer.SDAE(X_train.iloc[:, :4], X_test.iloc[:, :2], X_test.iloc[:, :2])
-# print(analyzer.fv_sdae_train.shape)
-# print(analyzer.fv_sdae_train)
-
-# kernel = 1.0 * RBF(1.0)
-# gpc = GaussianProcessClassifier(kernel=kernel, random_state=110)
-# gpc.fit(X_train, y_train)
-# print(gpc.score(X_train, y_train))
-#
-# # print(gpc.predict_proba(X_test))
-# # print(gpc.predict(X_test))
-#
-#
-# print("Log Marginal Likelihood: %.3f"
-#       % gpc.log_marginal_likelihood(gpc.kernel_.theta))
-# print("Accuracy: %.3f"
-#       % (accuracy_score(y_test, gpc.predict(X_test))))
-# print("Log-loss: %.3f"
-#       % (log_loss(y_test, gpc.predict_proba(X_test))))
-
-# clf = ComplementNB()
-# clf.fit(X_train, y_train)
-# print(clf.score(X_train, y_train))
-# print("Accuracy: %.3f"
-#       % (accuracy_score(y_test, clf.predict(X_test))))
-# print("Log-loss: %.3f"
-#       % (log_loss(y_test, clf.predict_proba(X_test))))
-
-# clf = RandomForestClassifier(max_depth=2, random_state=110)
-# clf.fit(X_train, y_train)
-# print(clf.score(X_train, y_train))
-# print("Accuracy: %.3f"
-#       % (accuracy_score(y_test, clf.predict(X_test))))
-# print("Log-loss: %.3f"
-#       % (log_loss(y_test, clf.predict_proba(X_test))))
-
-# clf = MLPClassifier(solver='lbfgs', alpha=1e-5,
-#                     hidden_layer_sizes=(500, 2), random_state=110)
-# clf.fit(X_train, y_train)
-# print(clf.score(X_train, y_train))
-# print("Accuracy: %.3f"
-#       % (accuracy_score(y_test, clf.predict(X_test))))
-# print("Log-loss: %.3f"
-#       % (log_loss(y_test, clf.predict_proba(X_test))))
-
-# clf = GradientBoostingClassifier(n_estimators=100, learning_rate=1.0,
-#                                  max_depth=1, random_state=110)
-# clf.fit(X_train, y_train)
-# print(clf.score(X_train, y_train))
-# print("Accuracy: %.3f"
-#       % (accuracy_score(y_test, clf.predict(X_test))))
-# print("Log-loss: %.3f"
-#       % (log_loss(y_test, clf.predict_proba(X_test))))
+# generator.SDAE(np.array(X_train.values[:4, :]), np.array(X_test.values[:2, :]), np.array(X_test.values[:2, :]))
+# generator.SDAE(X_train.iloc[:, :4].values, X_test.iloc[:, :2].values, X_test.iloc[:, :2].values)
+# generator.SDAE(X_train.iloc[:, :4], X_test.iloc[:, :2], X_test.iloc[:, :2])
+# print(generator.fv_sdae_train.shape)
+# print(generator.fv_sdae_train)
