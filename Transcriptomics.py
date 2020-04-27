@@ -130,8 +130,8 @@ def analyzeData(df_tp, df_maf, normalize=True):
 
     generator = FeatureVectorGenerator()
     generator.MAFGenes(X_train, y_train, X_test, df_maf, size=200)
-    generator.PCA(X_train, y_train, X_test, 100)
-    generator.KernelPCA(X_train, y_train, X_test, 100, "rbf")
+    generator.PCA(X_train, y_train, X_test, 300)
+    generator.KernelPCA(X_train, y_train, X_test, 300, "rbf")
     for key, value in tqdm(generator.getArrays().items()):
         if value['train'] is not None:
             # print('----------------', 'Feature Vector:', key)
@@ -143,9 +143,10 @@ def analyzeData(df_tp, df_maf, normalize=True):
             analyzer.MLPClassifier(value['train'], value['test'], y_train, y_test)
             for classifier, score in analyzer.getAccuracies().items():
                 if score['acc'] is not None:
-                    result.append([key, classifier, (round(score['acc'], 4) * 100), round(score['log_loss'], 3)])
+                    result.append([key, classifier, (round(score['acc'], 4) * 100), round(score['auc'], 3),
+                                   round(score['log_loss'], 3)])
                     # print(accuracy, classifier)
-    result = pd.DataFrame(result, columns=['Feature Vector', 'Classifier', 'Accuracy', 'Log Loss'])
+    result = pd.DataFrame(result, columns=['Feature Vector', 'Classifier', 'Accuracy', 'AUC', 'Log Loss'])
     print(result)
 
 

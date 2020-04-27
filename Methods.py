@@ -1,12 +1,14 @@
 from sklearn.gaussian_process import GaussianProcessClassifier
 from sklearn.gaussian_process.kernels import RBF
-from sklearn.metrics import accuracy_score, log_loss
+from sklearn.metrics import accuracy_score, log_loss, roc_curve
 from sklearn.naive_bayes import ComplementNB
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.neural_network import MLPClassifier
 from sklearn.ensemble import GradientBoostingClassifier
 from sklearn.decomposition import PCA
 from sklearn.decomposition import KernelPCA
+from sklearn.metrics import roc_auc_score
+from matplotlib import pyplot as plt
 
 
 # from SDAE.sdae import StackedDenoisingAE
@@ -201,42 +203,72 @@ class Analysis:
     def __init__(self, verbose=True):
         self.verbose = verbose
         self.gpc_accuracy = None
+        self.gpc_auc = None
         self.gpc_log_loss = None
         self.gpc_predicted = None
         self.gpc_predicted_proba = None
         self.rfc_accuracy = None
+        self.rfc_auc = None
         self.rfc_log_loss = None
         self.rfc_predicted = None
         self.rfc_predicted_proba = None
         self.mlp_accuracy = None
+        self.mlp_auc = None
         self.mlp_log_loss = None
         self.mlp_predicted = None
         self.mlp_predicted_proba = None
         self.cnb_accuracy = None
+        self.cnb_auc = None
         self.cnb_log_loss = None
         self.cnb_predicted = None
         self.cnb_predicted_proba = None
         self.gbc_accuracy = None
+        self.gbc_auc = None
         self.gbc_log_loss = None
         self.gbc_predicted = None
         self.gbc_predicted_proba = None
+
+    def plot_roc_curve(self, fpr, tpr, auc):
+        """
+        Example:
+            probs = predicted_proba[:, 1]  # Keep Probabilities of the positive class only.
+            self.gpc_auc = roc_auc_score(y_test, probs)
+            fpr, tpr, thresholds = roc_curve(y_test, probs)
+            self.plot_roc_curve(fpr, tpr, auc)
+        :param fpr:
+        :param tpr:
+        :param auc:
+        :return:
+        """
+        plt.plot(fpr, tpr, color='orange', label='ROC (area = %0.2f)' % auc)
+        plt.plot([0, 1], [0, 1], color='darkblue', linestyle='--')
+        plt.xlabel('False Positive Rate')
+        plt.ylabel('True Positive Rate')
+        plt.title('Receiver Operating Characteristic (ROC) Curve')
+        plt.legend()
+        plt.show()
 
     def getAccuracies(self):
         acc = {
             'GaussianProcessClassifier': {
                 'acc': self.gpc_accuracy,
+                'auc': self.gpc_auc,
                 'log_loss': self.gpc_log_loss},
             'RandomForestClassifier': {
                 'acc': self.rfc_accuracy,
+                'auc': self.rfc_auc,
                 'log_loss': self.rfc_log_loss},
             'MLPClassifier': {
                 'acc': self.mlp_accuracy,
+                'auc': self.mlp_auc,
                 'log_loss': self.mlp_log_loss},
             'ComplementNB': {
                 'acc': self.cnb_accuracy,
+                'auc': self.cnb_auc,
                 'log_loss': self.cnb_log_loss},
             'GradientBoostingClassifier': {
                 'acc': self.gbc_accuracy,
+                'auc': self.gbc_auc,
                 'log_loss': self.gbc_log_loss},
         }
         return acc
@@ -250,11 +282,15 @@ class Analysis:
         self.gpc_predicted_proba = clf.predict_proba(X_test)
         self.gpc_accuracy = accuracy_score(y_test, self.gpc_predicted)
         self.gpc_log_loss = log_loss(y_test, self.gpc_predicted_proba)
+        probs = self.gpc_predicted_proba[:, 1]  # Keep Probabilities of the positive class only.
+        self.gpc_auc = roc_auc_score(y_test, probs)
         # print("Test Score", gpc.score(X_test, y_test))  # equal to accuracy
         if self.verbose:
             print('-GaussianProcessClassifier:')
             print("Test Accuracy: %.4f"
                   % self.gpc_accuracy)
+            print("Test AUC: %.4f"
+                  % self.gpc_auc)
             print("Log Marginal Likelihood: %.4f"
                   % clf.log_marginal_likelihood(clf.kernel_.theta))
             print("Log-loss: %.4f"
@@ -267,10 +303,16 @@ class Analysis:
         self.rfc_predicted_proba = clf.predict_proba(X_test)
         self.rfc_accuracy = accuracy_score(y_test, self.rfc_predicted)
         self.rfc_log_loss = log_loss(y_test, self.rfc_predicted_proba)
+        probs = self.rfc_predicted_proba[:, 1]  # Keep Probabilities of the positive class only.
+        self.rfc_auc = roc_auc_score(y_test, probs)
+        # fpr, tpr, thresholds = roc_curve(y_test, probs)
+        # self.plot_roc_curve(fpr, tpr, self.rfc_auc)
         if self.verbose:
             print('-RandomForestClassifier:')
             print("Test Accuracy: %.4f"
                   % self.rfc_accuracy)
+            print("Test AUC: %.4f"
+                  % self.rfc_auc)
             print("Log-loss: %.4f"
                   % self.rfc_log_loss)
 
@@ -281,10 +323,14 @@ class Analysis:
         self.mlp_predicted_proba = clf.predict_proba(X_test)
         self.mlp_accuracy = accuracy_score(y_test, self.mlp_predicted)
         self.mlp_log_loss = log_loss(y_test, self.mlp_predicted_proba)
+        probs = self.mlp_predicted_proba[:, 1]  # Keep Probabilities of the positive class only.
+        self.mlp_auc = roc_auc_score(y_test, probs)
         if self.verbose:
             print('-MLPClassifier:')
             print("Test Accuracy: %.4f"
                   % self.mlp_accuracy)
+            print("Test AUC: %.4f"
+                  % self.mlp_auc)
             print("Log-loss: %.4f"
                   % self.mlp_log_loss)
 
@@ -295,10 +341,14 @@ class Analysis:
         self.cnb_predicted_proba = clf.predict_proba(X_test)
         self.cnb_accuracy = accuracy_score(y_test, self.cnb_predicted)
         self.cnb_log_loss = log_loss(y_test, self.cnb_predicted_proba)
+        probs = self.cnb_predicted_proba[:, 1]  # Keep Probabilities of the positive class only.
+        self.cnb_auc = roc_auc_score(y_test, probs)
         if self.verbose:
             print('-ComplementNB:')
             print("Test Accuracy: %.4f"
                   % self.cnb_accuracy)
+            print("Test AUC: %.4f"
+                  % self.cnb_auc)
             print("Log-loss: %.4f"
                   % self.cnb_log_loss)
 
@@ -309,9 +359,13 @@ class Analysis:
         self.gbc_predicted_proba = clf.predict_proba(X_test)
         self.gbc_accuracy = accuracy_score(y_test, self.gbc_predicted)
         self.gbc_log_loss = log_loss(y_test, self.gbc_predicted_proba)
+        probs = self.gbc_predicted_proba[:, 1]  # Keep Probabilities of the positive class only.
+        self.gbc_auc = roc_auc_score(y_test, probs)
         if self.verbose:
             print('-GradientBoostingClassifier:')
             print("Test Accuracy: %.4f"
                   % self.gbc_accuracy)
+            print("Test AUC: %.4f"
+                  % self.gbc_auc)
             print("Log-loss: %.4f"
                   % self.gbc_log_loss)
