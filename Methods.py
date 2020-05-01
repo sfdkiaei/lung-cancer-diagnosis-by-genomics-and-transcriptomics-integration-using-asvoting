@@ -8,6 +8,7 @@ from sklearn.ensemble import GradientBoostingClassifier
 from sklearn.decomposition import PCA
 from sklearn.decomposition import KernelPCA
 from sklearn.metrics import roc_auc_score
+from sklearn import svm
 from matplotlib import pyplot as plt
 
 
@@ -227,6 +228,11 @@ class Analysis:
         self.gbc_log_loss = None
         self.gbc_predicted = None
         self.gbc_predicted_proba = None
+        self.nlsvm_accuracy = None
+        self.nlsvm_auc = None
+        self.nlsvm_log_loss = None
+        self.nlsvm_predicted = None
+        self.nlsvm_predicted_proba = None
 
     def plot_roc_curve(self, fpr, tpr, auc):
         """
@@ -270,6 +276,10 @@ class Analysis:
                 'acc': self.gbc_accuracy,
                 'auc': self.gbc_auc,
                 'log_loss': self.gbc_log_loss},
+            'NonLinearSVMClassifier': {
+                'acc': self.nlsvm_accuracy,
+                'auc': self.nlsvm_auc,
+                'log_loss': self.nlsvm_log_loss},
         }
         return acc
 
@@ -369,3 +379,21 @@ class Analysis:
                   % self.gbc_auc)
             print("Log-loss: %.4f"
                   % self.gbc_log_loss)
+
+    def NoneLinearSVMClassifier(self, X_train, X_test, y_train, y_test):
+        clf = svm.SVC(gamma='auto', kernel='rbf', degree=3, class_weight='balanced', probability=True)
+        clf.fit(X_train, y_train)
+        self.nlsvm_predicted = clf.predict(X_test)
+        self.nlsvm_predicted_proba = clf.predict_proba(X_test)
+        self.nlsvm_accuracy = accuracy_score(y_test, self.nlsvm_predicted)
+        self.nlsvm_log_loss = log_loss(y_test, self.nlsvm_predicted_proba)
+        probs = self.nlsvm_predicted_proba[:, 1]  # Keep Probabilities of the positive class only.
+        self.nlsvm_auc = roc_auc_score(y_test, probs)
+        if self.verbose:
+            print('-NoneLinearSVMClassifier:')
+            print("Test Accuracy: %.4f"
+                  % self.nlsvm_accuracy)
+            print("Test AUC: %.4f"
+                  % self.nlsvm_auc)
+            print("Log-loss: %.4f"
+                  % self.nlsvm_log_loss)

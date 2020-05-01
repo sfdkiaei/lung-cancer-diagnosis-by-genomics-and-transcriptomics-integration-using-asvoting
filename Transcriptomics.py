@@ -141,6 +141,7 @@ def analyzeData(df_tp, df_maf, normalize=True):
             analyzer.RandomForestClassifier(value['train'], value['test'], y_train, y_test)
             analyzer.GradientBoostingClassifier(value['train'], value['test'], y_train, y_test)
             analyzer.MLPClassifier(value['train'], value['test'], y_train, y_test)
+            analyzer.NoneLinearSVMClassifier(value['train'], value['test'], y_train, y_test)
             for classifier, score in analyzer.getAccuracies().items():
                 if score['acc'] is not None:
                     result.append([key, classifier, (round(score['acc'], 4) * 100), round(score['auc'], 3),
