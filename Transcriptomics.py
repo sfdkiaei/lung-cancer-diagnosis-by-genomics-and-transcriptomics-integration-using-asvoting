@@ -1,6 +1,9 @@
 from sklearn import preprocessing
 from Methods import FeatureVectorGenerator
 from Methods import Analysis
+from Methods import BalancingDataset
+from Methods import StatisticalTest
+from Methods import Visualization
 import json
 import logging
 import numpy as np
@@ -11,6 +14,7 @@ from functools import reduce
 from sklearn.model_selection import train_test_split
 from tqdm import tqdm
 import warnings
+import mygene
 
 warnings.filterwarnings("ignore")
 plt.style.use('ggplot')
@@ -121,6 +125,9 @@ def printRowsContainingNan(dataFrame):
 def analyzeData(df_tp, df_maf, df_test=None, normalize=True, save=False):
     X = df_tp.iloc[:, :-1]
     y = df_tp.iloc[:, -1]
+    print(X)
+    # X, y = balancer.overSampling(X, y, 'ADASYN')
+    # print(X)
     print('Train data contains', len(y[y == True]), 'tumor and', len(y[y == False]), 'normal samples.')
     if normalize:
         min_max_scaler = preprocessing.MinMaxScaler()
@@ -133,7 +140,8 @@ def analyzeData(df_tp, df_maf, df_test=None, normalize=True, save=False):
         y_train = y
         X_test = df_test.iloc[:, :-1]
         y_test = df_test.iloc[:, -1]
-        print('Test data contains', len(y_test[y_test == True]), 'tumor', len(y_test[y_test == False]), 'normal samples.')
+        print('Test data contains', len(y_test[y_test == True]), 'tumor', len(y_test[y_test == False]),
+              'normal samples.')
         if normalize:
             min_max_scaler = preprocessing.MinMaxScaler()
             X_test_scaled = min_max_scaler.fit_transform(X_test)
@@ -141,9 +149,49 @@ def analyzeData(df_tp, df_maf, df_test=None, normalize=True, save=False):
     result = []
 
     generator = FeatureVectorGenerator()
-    generator.MAFGenes(X_train, y_train, X_test, df_maf, size=200)
-    generator.PCA(X_train, y_train, X_test, 300)
-    generator.KernelPCA(X_train, y_train, X_test, 300, "rbf")
+    generator.MAFGenes(X_train, y_train, X_test, df_maf, size=50)
+    # generator.PCA(X_train, y_train, X_test, 50)
+    # generator.KernelPCA(X_train, y_train, X_test, 50, "rbf")
+    feature_vectors = generator.getFeatureVectors()
+    housekeepings = open('Data/genes_housekeeping.txt', 'r').read().split('\n')
+    fv_housekeeping = []
+    fv_housekeeping_symbol = []
+    for gene in housekeepings:
+        fv_housekeeping.append(gene.split(',')[1])  # Ensembl gene id
+        fv_housekeeping_symbol.append(gene.split(',')[0])  # gene symbol
+    mg = mygene.MyGeneInfo()
+    st = StatisticalTest()
+    for feature_vector in tqdm(feature_vectors):
+        fv = feature_vectors[feature_vector]
+        if fv is not None:
+            fv_len = len(fv)
+            fv_symbol = mg.querymany(fv, scopes='ensembl.gene', fields='symbol', as_dataframe=True).loc[:,
+                         'symbol'].values.flatten().tolist()
+            pvalues = np.zeros((fv_len, len(fv_housekeeping)))
+            samples_tumor = X[y == True].sample(n=fv_len)
+            samples_normal = X[y == False].sample(n=fv_len)
+            for i in range(fv_len):
+                for j in range(len(fv_housekeeping)):
+                    pvalue = st.tTest(
+                        samples_tumor.loc[:, fv[i]].values.flatten().tolist(),
+                        samples_normal.loc[:, fv_housekeeping[j]].values.flatten().tolist()
+                    )
+                    pvalues[i, j] = pvalue
+            fig, ax = plt.subplots(figsize=(6, 12))
+            ax.set_xlabel('Housekeeping Genes')
+            ax.set_ylabel('Driver Genes')
+            visualization = Visualization()
+            # im, cbar = visualization.heatmap(pvalues, fv_symbol, fv_housekeeping_symbol, ax=ax,
+            #                                  cmap="plasma", cbarlabel="P-Value")
+            im = visualization.heatmap(pvalues, fv_symbol, fv_housekeeping_symbol, ax=ax,
+                                             cmap="plasma", cbarlabel="P-Value")
+            # texts = visualization.annotate_heatmap(im, valfmt="{x:.3f}")
+            plt.title(feature_vector)
+            fig.tight_layout()
+            plt.show()
+
+    return
+
     for key, value in tqdm(generator.getArrays().items()):
         if value['train'] is not None:
             # print('----------------', 'Feature Vector:', key)
@@ -184,50 +232,50 @@ def analyzeData(df_tp, df_maf, df_test=None, normalize=True, save=False):
         result.to_csv("result.csv")
 
 
-def evaluateData(df_tp, normalize=True):
-    X = df_tp.iloc[:, :-1]
-    y = df_tp.iloc[:, -1]
-    if normalize:
-        min_max_scaler = preprocessing.MinMaxScaler()
-        X_scaled = min_max_scaler.fit_transform(X)
-        X = pd.DataFrame(X_scaled, columns=X.columns, index=X.index)
-    # X_train, X_test, y_train, y_test = train_test_split(X, y, shuffle=True, random_state=110, test_size=0.3)
-    result = []
-
-    generator = FeatureVectorGenerator()
-    # todo: get maf genes
-    X_pca = generator.PCA(X, y, n_components=300)
-    # generator.KernelPCA(X_train, y_train, X_test, 300, "rbf")
-
-    # analyzer = Analysis(verbose=False)
-    # model_gpc = analyzer.loadModel('GaussianProcessClassifier')
-    # model_rfc = analyzer.loadModel('RandomForestClassifier')
-    # model_gbc = analyzer.loadModel('GradientBoostingClassifier')
-    # model_mlp = analyzer.loadModel('MLPClassifier')
-    # model_nlsvm = analyzer.loadModel('NonLinearSVMClassifier')
-
-    # _, _, acc, auc, loss = analyzer.evaluateData("gpc", X, y)
-    # print(acc, auc, loss)
-    _, _, acc, auc, loss = analyzer.evaluateData("gpc", X_pca, y)
-    print(acc, auc, loss)
-
-    # for key, value in tqdm(generator.getArrays().items()):
-    #     if value['test'] is not None:
-    #         # print('----------------', 'Feature Vector:', key)
-    #         analyzer = Analysis(verbose=False)
-    #         # analyzer.ComplementNB(value['train'], value['test'], y_train, y_test)
-    #         analyzer.GaussianProcessClassifier(value['train'], value['test'], y_train, y_test, model_gpc)
-    #         analyzer.RandomForestClassifier(value['train'], value['test'], y_train, y_test, model_rfc)
-    #         analyzer.GradientBoostingClassifier(value['train'], value['test'], y_train, y_test, model_gbc)
-    #         analyzer.MLPClassifier(value['train'], value['test'], y_train, y_test, model_mlp)
-    #         analyzer.NonLinearSVMClassifier(value['train'], value['test'], y_train, y_test, model_nlsvm)
-    #         for classifier, score in analyzer.getAccuracies().items():
-    #             if score['acc'] is not None:
-    #                 result.append([key, classifier, (round(score['acc'], 4) * 100), round(score['auc'], 3),
-    #                                round(score['log_loss'], 3)])
-    #                 # print(accuracy, classifier)
-    # result = pd.DataFrame(result, columns=['Feature Vector', 'Classifier', 'Accuracy', 'AUC', 'Log Loss'])
-    # print(result)
+# def evaluateData(df_tp, normalize=True):
+#     X = df_tp.iloc[:, :-1]
+#     y = df_tp.iloc[:, -1]
+#     if normalize:
+#         min_max_scaler = preprocessing.MinMaxScaler()
+#         X_scaled = min_max_scaler.fit_transform(X)
+#         X = pd.DataFrame(X_scaled, columns=X.columns, index=X.index)
+#     # X_train, X_test, y_train, y_test = train_test_split(X, y, shuffle=True, random_state=110, test_size=0.3)
+#     result = []
+#
+#     generator = FeatureVectorGenerator()
+#     # todo: get maf genes
+#     X_pca = generator.PCA(X, y, n_components=300)
+#     # generator.KernelPCA(X_train, y_train, X_test, 300, "rbf")
+#
+#     # analyzer = Analysis(verbose=False)
+#     # model_gpc = analyzer.loadModel('GaussianProcessClassifier')
+#     # model_rfc = analyzer.loadModel('RandomForestClassifier')
+#     # model_gbc = analyzer.loadModel('GradientBoostingClassifier')
+#     # model_mlp = analyzer.loadModel('MLPClassifier')
+#     # model_nlsvm = analyzer.loadModel('NonLinearSVMClassifier')
+#
+#     # _, _, acc, auc, loss = analyzer.evaluateData("gpc", X, y)
+#     # print(acc, auc, loss)
+#     _, _, acc, auc, loss = analyzer.evaluateData("gpc", X_pca, y)
+#     print(acc, auc, loss)
+#
+#     # for key, value in tqdm(generator.getArrays().items()):
+#     #     if value['test'] is not None:
+#     #         # print('----------------', 'Feature Vector:', key)
+#     #         analyzer = Analysis(verbose=False)
+#     #         # analyzer.ComplementNB(value['train'], value['test'], y_train, y_test)
+#     #         analyzer.GaussianProcessClassifier(value['train'], value['test'], y_train, y_test, model_gpc)
+#     #         analyzer.RandomForestClassifier(value['train'], value['test'], y_train, y_test, model_rfc)
+#     #         analyzer.GradientBoostingClassifier(value['train'], value['test'], y_train, y_test, model_gbc)
+#     #         analyzer.MLPClassifier(value['train'], value['test'], y_train, y_test, model_mlp)
+#     #         analyzer.NonLinearSVMClassifier(value['train'], value['test'], y_train, y_test, model_nlsvm)
+#     #         for classifier, score in analyzer.getAccuracies().items():
+#     #             if score['acc'] is not None:
+#     #                 result.append([key, classifier, (round(score['acc'], 4) * 100), round(score['auc'], 3),
+#     #                                round(score['log_loss'], 3)])
+#     #                 # print(accuracy, classifier)
+#     # result = pd.DataFrame(result, columns=['Feature Vector', 'Classifier', 'Accuracy', 'AUC', 'Log Loss'])
+#     # print(result)
 
 
 data_path = 'Data/'
@@ -264,6 +312,8 @@ df_maf = df_maf[df_maf['Gene'].notnull()]  # drop rows which gene is none
 df_lusc_normal = pd.read_pickle(path_lusc + normal + 'data.pkl')
 df_lusc_tumor = pd.read_pickle(path_lusc + tumor + 'data.pkl')
 df_lusc_tp = df_lusc_tumor.append(df_lusc_normal)  # Transcriptome Profiling
+
+balancer = BalancingDataset()
 
 # analyzer = Analysis(verbose=False)
 analyzeData(df_tp, df_maf, df_test=df_lusc_tp, save=True)
