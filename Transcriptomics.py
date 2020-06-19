@@ -4,6 +4,7 @@ from Methods import Analysis
 from Methods import BalancingDataset
 from Methods import StatisticalTest
 from Methods import Visualization
+from Methods import Fusion
 import json
 import logging
 import numpy as np
@@ -204,6 +205,9 @@ def analyzeData(df_tp, df_maf, df_test=None, normalize=True, save=False, statist
             model_gbc = analyzer.GradientBoostingClassifier(value['train'], value['test'], y_train, y_test)
             model_mlp = analyzer.MLPClassifier(value['train'], value['test'], y_train, y_test)
             model_nlsvm = analyzer.NonLinearSVMClassifier(value['train'], value['test'], y_train, y_test)
+            analyzer.maxVoting(y_test)
+            analyzer.weightedMaxVoting(y_test, [0.2, 0.1, 0.1, 0.2, 0.4])
+
             if save:
                 analyzer.saveModel(model_gpc, 'GaussianProcessClassifier')
                 analyzer.saveModel(model_rfc, 'RandomForestClassifier')
@@ -273,7 +277,7 @@ if __name__ == "__main__":
     balancer = BalancingDataset()
 
     # analyzer = Analysis(verbose=False)
-    analyzeData(df_tp, df_maf, df_test=df_lusc_tp, save=True, statisticsTest=True)
+    analyzeData(df_tp, df_maf, df_test=df_lusc_tp, save=True, statisticsTest=False)
 
     # evaluateData(df_lusc_tp)
 

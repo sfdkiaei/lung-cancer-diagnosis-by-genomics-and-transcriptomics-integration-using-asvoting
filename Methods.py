@@ -354,6 +354,12 @@ class Analysis:
         self.nlsvm_log_loss = None
         self.nlsvm_predicted = None
         self.nlsvm_predicted_proba = None
+        self.mv_measurements = None
+        self.mv_accuracy = None
+        self.mv_predicted = None
+        self.wmv_measurements = None
+        self.wmv_accuracy = None
+        self.wmv_predicted = None
 
     def plot_roc_curve(self, fpr, tpr, auc):
         """
@@ -407,8 +413,37 @@ class Analysis:
                 'acc': self.nlsvm_accuracy,
                 'auc': self.nlsvm_auc,
                 'log_loss': self.nlsvm_log_loss},
+            'maxVoting': {
+                'measurements': self.mv_measurements,
+                'acc': self.mv_accuracy,
+                'auc': -1,
+                'log_loss': -1},
+            'weightedMaxVoting': {
+                'measurements': self.wmv_measurements,
+                'acc': self.wmv_accuracy,
+                'auc': -1,
+                'log_loss': -1},
         }
         return acc
+
+    def getPredictions(self):
+        # pred = {
+        #     'GaussianProcessClassifier': self.gpc_predicted,
+        #     'RandomForestClassifier': self.rfc_predicted,
+        #     'MLPClassifier': self.mlp_predicted,
+        #     'ComplementNB': self.cnb_predicted,
+        #     'GradientBoostingClassifier': self.gbc_predicted,
+        #     'NonLinearSVMClassifier': self.nlsvm_predicted,
+        # }
+        pred = [
+            self.gpc_predicted,
+            self.rfc_predicted,
+            self.mlp_predicted,
+            self.cnb_predicted,
+            self.gbc_predicted,
+            self.nlsvm_predicted,
+        ]
+        return pred
 
     def saveModel(self, model, name, path='Models/'):
         if not os.path.exists(path):
@@ -629,6 +664,71 @@ class Analysis:
                   % self.nlsvm_log_loss)
         return clf
 
+    def maxVoting(self, y_test):
+        result = []
+        length = 0
+        for i in self.getPredictions():
+            if i is not None:
+                length = len(i)
+                break
+        if length == 0:
+            raise ValueError('All classifiers predictions are None')
+        for idx in range(length):
+            preds = []
+            for classifier in self.getPredictions():
+                if classifier is not None:
+                    preds.append(classifier[idx])
+            result.append(np.argmax(np.bincount(preds)) > 0)
+            # print(preds, np.argmax(np.bincount(preds)) > 0)
+        self.mv_predicted = result
+        # self.mv_predicted_proba = clf.predict_proba(X_test)
+        self.mv_accuracy = accuracy_score(y_test, self.mv_predicted)
+        # self.mv_log_loss = log_loss(y_test, self.mv_predicted_proba)
+        # probs = self.mv_predicted_proba[:, 1]  # Keep Probabilities of the positive class only.
+        # self.mv_auc = roc_auc_score(y_test, probs)
+        self.mv_measurements = self.getMeasurements(y_test, self.mv_predicted)
+        if self.verbose:
+            print('-maxVoting:')
+            print("Test Accuracy: %.4f"
+                  % self.mv_accuracy)
+            # print("Test AUC: %.4f"
+            #       % self.nlsvm_auc)
+            # print("Log-loss: %.4f"
+            #       % self.nlsvm_log_loss)
+
+    def weightedMaxVoting(self, y_test, weights):
+        result = []
+        length = 0
+        for i in self.getPredictions():
+            if i is not None:
+                length = len(i)
+                break
+        if length == 0:
+            raise ValueError('All classifiers predictions are None')
+        for idx in range(length):
+            preds = []
+            for classifier in self.getPredictions():
+                if classifier is not None:
+                    preds.append(classifier[idx])
+            result.append(np.average(preds, weights=weights) > 0.5)
+            # result.append(np.argmax(np.bincount(preds)) > 0)
+            # print(preds, np.average(preds, weights=weights))
+        self.wmv_predicted = result
+        # self.mv_predicted_proba = clf.predict_proba(X_test)
+        self.wmv_accuracy = accuracy_score(y_test, self.wmv_predicted)
+        # self.mv_log_loss = log_loss(y_test, self.mv_predicted_proba)
+        # probs = self.mv_predicted_proba[:, 1]  # Keep Probabilities of the positive class only.
+        # self.mv_auc = roc_auc_score(y_test, probs)
+        self.wmv_measurements = self.getMeasurements(y_test, self.wmv_predicted)
+        if self.verbose:
+            print('-weightedMaxVoting:')
+            print("Test Accuracy: %.4f"
+                  % self.wmv_accuracy)
+            # print("Test AUC: %.4f"
+            #       % self.nlsvm_auc)
+            # print("Log-loss: %.4f"
+            #       % self.nlsvm_log_loss)
+
     def evaluateData(self, model, X_test, y_test):
         if model == "gpc":
             clf = self.gpc
@@ -661,6 +761,62 @@ class Analysis:
         probs = predicted_proba[:, 1]  # Keep Probabilities of the positive class only.
         auc = roc_auc_score(y_test, probs)
         return predicted, predicted_proba, accuracy, auc, logloss
+
+
+class Fusion:
+    def __init__(self, analyzer: Analysis = None):
+        self.analyzer = analyzer
+
+    def owa(self, train_data, train_label, test_data, num_args, lr=0.9, epoch_num=150):
+        # Initialize
+        landa = np.random.rand(num_args)
+        # landa = np.zeros(num_args)
+        w = np.ones(num_args) * (1.0 / num_args)
+        d_estimate = np.sum([np.exp(landa[i]) / np.sum(np.exp(landa)) for i in range(num_args)])
+        # d_estimate = 0
+
+        # Train
+        for epoch in range(epoch_num):
+            lr /= 1.001
+            for idx, sample in enumerate(train_data):
+                b = np.sort(sample)[::-1]
+                diff = w * (b - d_estimate) * (d_estimate - train_label[idx])
+                landa -= lr * diff
+                w = [np.exp(landa[i]) / np.sum(np.exp(landa)) if np.exp(landa[i]) / np.sum(np.exp(landa)) > 1e-5 else 0
+                     for
+                     i in range(num_args)]
+                # print(w)
+                d_estimate = np.sum(b * w)
+
+        # print('\nLambdas:', np.round(landa, 2))
+        # print('Weights:', np.round(w, 2))
+        # print('\nSample\t\tAggregated Value\tEstimated Value')
+        # print('-----------------------------------------------')
+        # for idx, sample in enumerate(train_data):
+        #     print('Sample', (idx + 1), '\t\t', train_label[idx], '\t\t\t', np.round(np.sum(np.sort(train_data[idx])[::-1] * w), 2))
+        # Prediction
+        result = []
+        for idx, sample in enumerate(test_data):
+            b = np.sort(sample)[::-1]
+            d_estimate = np.sum(b * w)
+            result.append(d_estimate)
+        return result
+
+    def maxVoting(self):
+        if self.analyzer is not None:
+            result = []
+            length = 0
+            for i in self.analyzer.getPredictions():
+                if i is not None:
+                    length = len(i)
+                    break
+            if length == 0:
+                raise ValueError('All classifiers predictions in Analysis class are None')
+            for idx in range(length):
+                result.append(np.max(self.analyzer.getPredictions()[:, idx]))
+        else:
+            raise AttributeError('Object from Analysis class should pass in the constructor')
+        return result
 
 
 class Visualization:
