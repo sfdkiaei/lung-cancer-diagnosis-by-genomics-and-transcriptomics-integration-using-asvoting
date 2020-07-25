@@ -129,7 +129,7 @@ def runStatisticsTest(X, y, feature_vectors, sample_num):
     fv_housekeeping = []
     fv_housekeeping_symbol = []
     for gene in housekeepings:
-        fv_housekeeping.append(gene.split(',')[1])  # Ensembl gene id
+        fv_housekeeping.append(gene.split(',')[1])  # Ensemble gene id
         fv_housekeeping_symbol.append(gene.split(',')[0])  # gene symbol
     mg = mygene.MyGeneInfo()
     st = StatisticalTest()
@@ -205,8 +205,10 @@ def analyzeData(df_tp, df_maf, df_test=None, normalize=True, save=False, statist
             model_gbc = analyzer.GradientBoostingClassifier(value['train'], value['test'], y_train, y_test)
             model_mlp = analyzer.MLPClassifier(value['train'], value['test'], y_train, y_test)
             model_nlsvm = analyzer.NonLinearSVMClassifier(value['train'], value['test'], y_train, y_test)
+            model_fpc = analyzer.FuzzyPatternClassifier(value['train'], value['test'], y_train, y_test)
+            model_fpcga = analyzer.FuzzyPatternClassifierGA(value['train'], value['test'], y_train, y_test)
             analyzer.maxVoting(y_test)
-            analyzer.weightedMaxVoting(y_test, [0.2, 0.1, 0.1, 0.2, 0.4])
+            analyzer.weightedMaxVoting(y_test, [1, 1, 1, 1, 1, 1, 1])
 
             if save:
                 analyzer.saveModel(model_gpc, 'GaussianProcessClassifier')
@@ -214,6 +216,8 @@ def analyzeData(df_tp, df_maf, df_test=None, normalize=True, save=False, statist
                 analyzer.saveModel(model_gbc, 'GradientBoostingClassifier')
                 analyzer.saveModel(model_mlp, 'MLPClassifier')
                 analyzer.saveModel(model_nlsvm, 'NonLinearSVMClassifier')
+                analyzer.saveModel(model_fpc, 'FuzzyPatternClassifier')
+                analyzer.saveModel(model_fpcga, 'FuzzyPatternClassifierGA')
             for classifier, score in analyzer.getAccuracies().items():
                 if score['acc'] is not None:
                     result.append([key, classifier,

@@ -24,6 +24,8 @@ from imblearn.over_sampling import ADASYN, RandomOverSampler, BorderlineSMOTE, S
 from imblearn.over_sampling import SMOTE
 from scipy import stats
 import pandas as pd
+from fylearn.nfpc import FuzzyPatternClassifier
+from fylearn.fpcga import FuzzyPatternClassifierGA
 
 
 # from SDAE.sdae import StackedDenoisingAE
@@ -354,6 +356,14 @@ class Analysis:
         self.nlsvm_log_loss = None
         self.nlsvm_predicted = None
         self.nlsvm_predicted_proba = None
+        self.fpc = None
+        self.fpc_measurements = None
+        self.fpc_accuracy = None
+        self.fpc_predicted = None
+        self.fpcga = None
+        self.fpcga_measurements = None
+        self.fpcga_accuracy = None
+        self.fpcga_predicted = None
         self.mv_measurements = None
         self.mv_accuracy = None
         self.mv_predicted = None
@@ -413,6 +423,16 @@ class Analysis:
                 'acc': self.nlsvm_accuracy,
                 'auc': self.nlsvm_auc,
                 'log_loss': self.nlsvm_log_loss},
+            'FuzzyPatternClassifier': {
+                'measurements': self.fpc_measurements,
+                'acc': self.fpc_accuracy,
+                'auc': -1,
+                'log_loss': -1},
+            'FuzzyPatternClassifierGA': {
+                'measurements': self.fpcga_measurements,
+                'acc': self.fpcga_accuracy,
+                'auc': -1,
+                'log_loss': -1},
             'maxVoting': {
                 'measurements': self.mv_measurements,
                 'acc': self.mv_accuracy,
@@ -442,6 +462,8 @@ class Analysis:
             self.cnb_predicted,
             self.gbc_predicted,
             self.nlsvm_predicted,
+            self.fpc_predicted,
+            self.fpcga_predicted
         ]
         return pred
 
@@ -664,6 +686,54 @@ class Analysis:
                   % self.nlsvm_log_loss)
         return clf
 
+    def FuzzyPatternClassifier(self, X_train, X_test, y_train, y_test, model=None):
+        if model is None:
+            clf = FuzzyPatternClassifier()
+            clf.fit(X_train, y_train)
+            self.fpc = clf
+        else:
+            clf = model
+        self.fpc_predicted = clf.predict(X_test)
+        # self.nlsvm_predicted_proba = clf.predict_proba(X_test)
+        self.fpc_accuracy = accuracy_score(y_test, self.fpc_predicted)
+        # self.nlsvm_log_loss = log_loss(y_test, self.nlsvm_predicted_proba)
+        # probs = self.nlsvm_predicted_proba[:, 1]  # Keep Probabilities of the positive class only.
+        # self.nlsvm_auc = roc_auc_score(y_test, probs)
+        self.fpc_measurements = self.getMeasurements(y_test, self.fpc_predicted)
+        if self.verbose:
+            print('-FuzzyPatternClassifier:')
+            print("Test Accuracy: %.4f"
+                  % self.fpc_accuracy)
+            # print("Test AUC: %.4f"
+            #       % self.nlsvm_auc)
+            # print("Log-loss: %.4f"
+            #       % self.nlsvm_log_loss)
+        return clf
+
+    def FuzzyPatternClassifierGA(self, X_train, X_test, y_train, y_test, model=None):
+        if model is None:
+            clf = FuzzyPatternClassifierGA()
+            clf.fit(X_train, y_train)
+            self.fpcga = clf
+        else:
+            clf = model
+        self.fpcga_predicted = clf.predict(X_test)
+        # self.nlsvm_predicted_proba = clf.predict_proba(X_test)
+        self.fpcga_accuracy = accuracy_score(y_test, self.fpcga_predicted)
+        # self.nlsvm_log_loss = log_loss(y_test, self.nlsvm_predicted_proba)
+        # probs = self.nlsvm_predicted_proba[:, 1]  # Keep Probabilities of the positive class only.
+        # self.nlsvm_auc = roc_auc_score(y_test, probs)
+        self.fpcga_measurements = self.getMeasurements(y_test, self.fpcga_predicted)
+        if self.verbose:
+            print('-FuzzyPatternClassifierGA:')
+            print("Test Accuracy: %.4f"
+                  % self.fpcga_accuracy)
+            # print("Test AUC: %.4f"
+            #       % self.nlsvm_auc)
+            # print("Log-loss: %.4f"
+            #       % self.nlsvm_log_loss)
+        return clf
+
     def maxVoting(self, y_test):
         result = []
         length = 0
@@ -728,6 +798,56 @@ class Analysis:
             #       % self.nlsvm_auc)
             # print("Log-loss: %.4f"
             #       % self.nlsvm_log_loss)
+
+    # def owa(self, X_train, X_test, y_train, y_test, num_args, lr=0.9, epoch_num=150):
+    #     # Initialize
+    #     landa = np.random.rand(num_args)
+    #     # landa = np.zeros(num_args)
+    #     w = np.ones(num_args) * (1.0 / num_args)
+    #     d_estimate = np.sum([np.exp(landa[i]) / np.sum(np.exp(landa)) for i in range(num_args)])
+    #     # d_estimate = 0
+    #
+    #     # Train
+    #     for epoch in range(epoch_num):
+    #         lr /= 1.001
+    #         for idx, sample in enumerate(X_train):
+    #             b = np.sort(sample)[::-1]
+    #             diff = w * (b - d_estimate) * (d_estimate - y_train[idx])
+    #             landa -= lr * diff
+    #             w = [np.exp(landa[i]) / np.sum(np.exp(landa)) if np.exp(landa[i]) / np.sum(
+    #                 np.exp(landa)) > 1e-5 else 0
+    #                  for
+    #                  i in range(num_args)]
+    #             # print(w)
+    #             d_estimate = np.sum(b * w)
+    #
+    #     # print('\nLambdas:', np.round(landa, 2))
+    #     # print('Weights:', np.round(w, 2))
+    #     # print('\nSample\t\tAggregated Value\tEstimated Value')
+    #     # print('-----------------------------------------------')
+    #     # for idx, sample in enumerate(train_data):
+    #     #     print('Sample', (idx + 1), '\t\t', train_label[idx], '\t\t\t', np.round(np.sum(np.sort(train_data[idx])[::-1] * w), 2))
+    #     # Prediction
+    #     self.owa_predicted = []
+    #     for idx, sample in enumerate(X_test):
+    #         b = np.sort(sample)[::-1]
+    #         d_estimate = np.sum(b * w)
+    #         self.owa_predicted.append(d_estimate)
+    #     # self.nlsvm_predicted_proba = clf.predict_proba(X_test)
+    #     self.nlsvm_accuracy = accuracy_score(y_test, self.nlsvm_predicted)
+    #     self.nlsvm_log_loss = log_loss(y_test, self.nlsvm_predicted_proba)
+    #     probs = self.nlsvm_predicted_proba[:, 1]  # Keep Probabilities of the positive class only.
+    #     self.nlsvm_auc = roc_auc_score(y_test, probs)
+    #     self.nlsvm_measurements = self.getMeasurements(y_test, self.nlsvm_predicted)
+    #     if self.verbose:
+    #         print('-NonLinearSVMClassifier:')
+    #         print("Test Accuracy: %.4f"
+    #               % self.nlsvm_accuracy)
+    #         print("Test AUC: %.4f"
+    #               % self.nlsvm_auc)
+    #         print("Log-loss: %.4f"
+    #               % self.nlsvm_log_loss)
+    #     return clf
 
     def evaluateData(self, model, X_test, y_test):
         if model == "gpc":
