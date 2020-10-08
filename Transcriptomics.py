@@ -1,7 +1,10 @@
+import time
+
 from sklearn import preprocessing
-from Methods import FeatureVectorGenerator
-from Methods import Analysis
-from Methods import BalancingDataset
+
+from Analysis import Analysis
+from BalancingDataset import BalancingDataset
+from FeatureVectorGenerator import FeatureVectorGenerator
 from Methods import StatisticalTest
 from Methods import Visualization
 from Methods import Fusion
@@ -16,6 +19,7 @@ from sklearn.model_selection import train_test_split
 from tqdm import tqdm
 import warnings
 import mygene
+from sklearn.model_selection import ShuffleSplit
 
 warnings.filterwarnings("ignore")
 plt.style.use('ggplot')
@@ -159,62 +163,72 @@ def runStatisticsTest(X, y, feature_vectors, sample_num):
             plt.show()
 
 
-def analyzeData(df_tp, df_maf, df_test=None, normalize=True, save=False, statisticsTest=False):
+def splitData(df_tp, df_test=None, normalize=True):
     X = df_tp.iloc[:, :-1]
     y = df_tp.iloc[:, -1]
-    print(X)
     X, y = balancer.overSampling(X, y, 'ADASYN')
-    print(X)
-    print('Train data contains', len(y[y == True]), 'tumor and', len(y[y == False]), 'normal samples.')
     if normalize:
+        print('Normalizing data...')
         min_max_scaler = preprocessing.MinMaxScaler()
         X_scaled = min_max_scaler.fit_transform(X)
         X = pd.DataFrame(X_scaled, columns=X.columns, index=X.index)
     if df_test is None:
-        X_train, X_test, y_train, y_test = train_test_split(X, y, shuffle=True, random_state=110, test_size=0.3)
+        X_train, X_test, y_train, y_test = train_test_split(X, y, shuffle=True, test_size=0.3)
     else:
         X_train = X
         y_train = y
         X_test = df_test.iloc[:, :-1]
         y_test = df_test.iloc[:, -1]
         X_test, y_test = balancer.underSampling(X_test, y_test, 'RandomUnderSampler')
-        print('Test data contains', len(y_test[y_test == True]), 'tumor', len(y_test[y_test == False]),
-              'normal samples.')
         if normalize:
             min_max_scaler = preprocessing.MinMaxScaler()
             X_test_scaled = min_max_scaler.fit_transform(X_test)
             X_test = pd.DataFrame(X_test_scaled, columns=X_test.columns, index=X_test.index)
+    print('Train data contains', len(y_train[y_train == True]), 'tumor', len(y_train[y_train == False]),
+          'normal samples.')
+    print('Test data contains', len(y_test[y_test == True]), 'tumor', len(y_test[y_test == False]),
+          'normal samples.')
+    cv = ShuffleSplit(n_splits=5, test_size=0.3)
+    return X_train, X_test, y_train, y_test, cv
+
+
+def analyzeData(df_tp, df_maf, df_test=None, normalize=True, save=False, statisticsTest=False,
+                statisticsTestSampleNum=40, featureSize=50):
+    X_train, X_test, y_train, y_test, cv = splitData(df_tp, df_test, normalize=normalize)
 
     generator = FeatureVectorGenerator()
-    generator.MAFGenes(X_train, y_train, X_test, df_maf, size=50)
-    generator.PCA(X_train, y_train, X_test, 50)
-    generator.KernelPCA(X_train, y_train, X_test, 50, "rbf")
+    generator.MAFGenes(X_train, y_train, X_test, df_maf, size=featureSize)
+    generator.PCA(X_train, y_train, X_test, featureSize)
+    generator.KernelPCA(X_train, y_train, X_test, featureSize, "rbf")
 
     if statisticsTest:
         feature_vectors = generator.getFeatureVectors()
-        runStatisticsTest(X_test, y_test, feature_vectors, 40)
+        runStatisticsTest(X_test, y_test, feature_vectors, statisticsTestSampleNum)
 
     result = []
     for key, value in tqdm(generator.getArrays().items()):
         if value['train'] is not None:
             # print('----------------', 'Feature Vector:', key)
-            analyzer = Analysis(verbose=False)
+            analyzer = Analysis(cv, verbose=False)
             # analyzer.ComplementNB(value['train'], value['test'], y_train, y_test)
             model_gpc = analyzer.GaussianProcessClassifier(value['train'], value['test'], y_train, y_test)
             model_rfc = analyzer.RandomForestClassifier(value['train'], value['test'], y_train, y_test)
             model_gbc = analyzer.GradientBoostingClassifier(value['train'], value['test'], y_train, y_test)
             model_mlp = analyzer.MLPClassifier(value['train'], value['test'], y_train, y_test)
+            # model_tpot = analyzer.TpotClassifier(value['train'], value['test'], y_train, y_test)
             model_nlsvm = analyzer.NonLinearSVMClassifier(value['train'], value['test'], y_train, y_test)
             model_fpc = analyzer.FuzzyPatternClassifier(value['train'], value['test'], y_train, y_test)
             model_fpcga = analyzer.FuzzyPatternClassifierGA(value['train'], value['test'], y_train, y_test)
             analyzer.maxVoting(y_test)
-            analyzer.weightedMaxVoting(y_test, [1, 1, 1, 1, 1, 1, 1])
+            # analyzer.weightedMaxVoting(y_test, [1, 1, 1, 1, 1, 1, 1])
+            analyzer.customVoting(y_test, size=5, threshold_tpr=0.6, threshold_tnr=0.6)
 
             if save:
                 analyzer.saveModel(model_gpc, 'GaussianProcessClassifier')
                 analyzer.saveModel(model_rfc, 'RandomForestClassifier')
                 analyzer.saveModel(model_gbc, 'GradientBoostingClassifier')
                 analyzer.saveModel(model_mlp, 'MLPClassifier')
+                # analyzer.saveModel(model_tpot, 'TpotClassifier')
                 analyzer.saveModel(model_nlsvm, 'NonLinearSVMClassifier')
                 analyzer.saveModel(model_fpc, 'FuzzyPatternClassifier')
                 analyzer.saveModel(model_fpcga, 'FuzzyPatternClassifierGA')
@@ -239,7 +253,8 @@ def analyzeData(df_tp, df_maf, df_test=None, normalize=True, save=False, statist
                                            ])
     print(result)
     if save:
-        result.to_csv("result.csv")
+        timestr = time.strftime("%Y%m%d-%H%M%S")
+        result.to_csv("result_" + timestr + ".csv")
 
 
 if __name__ == "__main__":
