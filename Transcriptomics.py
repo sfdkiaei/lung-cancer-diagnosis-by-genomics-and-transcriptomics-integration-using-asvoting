@@ -164,8 +164,10 @@ def runStatisticsTest(X, y, feature_vectors, sample_num):
 
 
 def splitData(df_tp, df_test=None, normalize=True):
+    print('Splitting data...')
     X = df_tp.iloc[:, :-1]
     y = df_tp.iloc[:, -1]
+    print('Over Sampling data...')
     X, y = balancer.overSampling(X, y, 'ADASYN')
     if normalize:
         print('Normalizing data...')
@@ -184,9 +186,9 @@ def splitData(df_tp, df_test=None, normalize=True):
             min_max_scaler = preprocessing.MinMaxScaler()
             X_test_scaled = min_max_scaler.fit_transform(X_test)
             X_test = pd.DataFrame(X_test_scaled, columns=X_test.columns, index=X_test.index)
-    print('Train data contains', len(y_train[y_train == True]), 'tumor', len(y_train[y_train == False]),
+    print('Train data contains', len(y_train[y_train == True]), 'tumor,', len(y_train[y_train == False]),
           'normal samples.')
-    print('Test data contains', len(y_test[y_test == True]), 'tumor', len(y_test[y_test == False]),
+    print('Test data contains', len(y_test[y_test == True]), 'tumor,', len(y_test[y_test == False]),
           'normal samples.')
     cv = ShuffleSplit(n_splits=5, test_size=0.3)
     return X_train, X_test, y_train, y_test, cv
@@ -210,12 +212,10 @@ def analyzeData(df_tp, df_maf, df_test=None, normalize=True, save=False, statist
         if value['train'] is not None:
             # print('----------------', 'Feature Vector:', key)
             analyzer = Analysis(cv, verbose=False)
-            # analyzer.ComplementNB(value['train'], value['test'], y_train, y_test)
             model_gpc = analyzer.GaussianProcessClassifier(value['train'], value['test'], y_train, y_test)
             model_rfc = analyzer.RandomForestClassifier(value['train'], value['test'], y_train, y_test)
             model_gbc = analyzer.GradientBoostingClassifier(value['train'], value['test'], y_train, y_test)
             model_mlp = analyzer.MLPClassifier(value['train'], value['test'], y_train, y_test)
-            # model_tpot = analyzer.TpotClassifier(value['train'], value['test'], y_train, y_test)
             model_nlsvm = analyzer.NonLinearSVMClassifier(value['train'], value['test'], y_train, y_test)
             model_fpc = analyzer.FuzzyPatternClassifier(value['train'], value['test'], y_train, y_test)
             model_fpcga = analyzer.FuzzyPatternClassifierGA(value['train'], value['test'], y_train, y_test)
@@ -228,33 +228,32 @@ def analyzeData(df_tp, df_maf, df_test=None, normalize=True, save=False, statist
                 analyzer.saveModel(model_rfc, 'RandomForestClassifier')
                 analyzer.saveModel(model_gbc, 'GradientBoostingClassifier')
                 analyzer.saveModel(model_mlp, 'MLPClassifier')
-                # analyzer.saveModel(model_tpot, 'TpotClassifier')
                 analyzer.saveModel(model_nlsvm, 'NonLinearSVMClassifier')
                 analyzer.saveModel(model_fpc, 'FuzzyPatternClassifier')
                 analyzer.saveModel(model_fpcga, 'FuzzyPatternClassifierGA')
             for classifier, score in analyzer.getAccuracies().items():
-                if score['acc'] is not None:
-                    result.append([key, classifier,
-                                   round(score['acc'], 4),
-                                   round(score['auc'], 4),
-                                   round(score['measurements']['TPR'], 4),
-                                   round(score['measurements']['TNR'], 4),
-                                   round(score['measurements']['PPV'], 4),
-                                   round(score['log_loss'], 4)
-                                   ])
-                    # print(accuracy, classifier)
-    result = pd.DataFrame(result, columns=['Feature Vector', 'Classifier',
-                                           'Accuracy',
-                                           'AUC',
-                                           'Sensitivity(TPR)',
-                                           'Specificity(TNR)',
-                                           'Precision(PPV)',
-                                           'Log Loss'
-                                           ])
+                if score['Acc'] is not None:
+                    result.append([key, classifier] + [value for value in score.values()])
+                    columns = list(score.keys())
+    columns = ['Feature Vector', 'Classifier'] + columns
+    result = pd.DataFrame(result, columns=columns
+                                           #  ['Feature Vector', 'Classifier',
+                                           # 'Accuracy',
+                                           # 'AUC',
+                                           # 'Sensitivity(TPR)',
+                                           # 'Specificity(TNR)',
+                                           # 'Precision(PPV)',
+                                           # 'Log Loss',
+                                           # '[CV] Test Score - mean',
+                                           # '[CV] Test Score - .95 CI',
+                                           # '[CV] Fit Time'
+                                           # ]
+                          )
     print(result)
     if save:
         timestr = time.strftime("%Y%m%d-%H%M%S")
-        result.to_csv("result_" + timestr + ".csv")
+        # result.to_csv("result_" + timestr + ".csv")
+        result.to_excel("result_" + timestr + ".xlsx")
 
 
 if __name__ == "__main__":

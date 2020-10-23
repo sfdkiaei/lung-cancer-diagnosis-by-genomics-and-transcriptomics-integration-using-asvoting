@@ -15,19 +15,24 @@ import os
 from sklearn.metrics import roc_auc_score
 from sklearn import svm
 import numpy as np
+from datetime import datetime
+
+
 # from tpot import TPOTClassifier
 
 
 class Model:
     def __init__(self):
-        self.name = None
+        self.name: str = None
         self.model = None
-        self.measurements = None
-        self.accuracy = None
-        self.auc = None
-        self.log_loss = None
+        self.measurements: dict = None
+        self.accuracy: float = None
+        self.auc: float = None
+        self.log_loss: float = None
         self.predicted = None
         self.predicted_proba = None
+        self.cv_scores = None
+        self.time: float = None  # milliseconds
 
 
 class Analysis:
@@ -35,71 +40,30 @@ class Analysis:
         self.verbose = verbose
         self.cv = cv
         self.gpc = None
-        self.gpc_measurements = None
-        self.gpc_accuracy = None
-        self.gpc_auc = None
-        self.gpc_log_loss = None
-        self.gpc_predicted = None
-        self.gpc_predicted_proba = None
         self.rfc = None
-        self.rfc_measurements = None
-        self.rfc_accuracy = None
-        self.rfc_auc = None
-        self.rfc_log_loss = None
-        self.rfc_predicted = None
-        self.rfc_predicted_proba = None
         self.mlp = None
-        self.mlp_measurements = None
-        self.mlp_accuracy = None
-        self.mlp_auc = None
-        self.mlp_log_loss = None
-        self.mlp_predicted = None
-        self.mlp_predicted_proba = None
-        # self.tpot = None
-        # self.tpot_measurements = None
-        # self.tpot_accuracy = None
-        # self.tpot_auc = None
-        # self.tpot_log_loss = None
-        # self.tpot_predicted = None
-        # self.tpot_predicted_proba = None
         self.cnb = None
-        self.cnb_measurements = None
-        self.cnb_accuracy = None
-        self.cnb_auc = None
-        self.cnb_log_loss = None
-        self.cnb_predicted = None
-        self.cnb_predicted_proba = None
         self.gbc = None
-        self.gbc_measurements = None
-        self.gbc_accuracy = None
-        self.gbc_auc = None
-        self.gbc_log_loss = None
-        self.gbc_predicted = None
-        self.gbc_predicted_proba = None
         self.nlsvm = None
-        self.nlsvm_measurements = None
-        self.nlsvm_accuracy = None
-        self.nlsvm_auc = None
-        self.nlsvm_log_loss = None
-        self.nlsvm_predicted = None
-        self.nlsvm_predicted_proba = None
         self.fpc = None
-        self.fpc_measurements = None
-        self.fpc_accuracy = None
-        self.fpc_predicted = None
         self.fpcga = None
-        self.fpcga_measurements = None
-        self.fpcga_accuracy = None
-        self.fpcga_predicted = None
-        self.mv_measurements = None
-        self.mv_accuracy = None
-        self.mv_predicted = None
-        self.wmv_measurements = None
-        self.wmv_accuracy = None
-        self.wmv_predicted = None
-        self.cv_measurements = None
-        self.cv_accuracy = None
-        self.cv_predicted = None
+        self.mv = None
+        self.wmv = None
+        self.custom_voting = None
+
+    def getModels(self):
+        models = [self.gpc,
+                  self.rfc,
+                  self.mlp,
+                  self.cnb,
+                  self.gbc,
+                  self.nlsvm,
+                  self.fpc,
+                  self.fpcga,
+                  self.mv,
+                  self.wmv,
+                  self.custom_voting]
+        return models
 
     def plot_roc_curve(self, fpr, tpr, auc):
         """
@@ -122,105 +86,72 @@ class Analysis:
         plt.show()
 
     def getAccuracies(self):
-        acc = {
-            'GaussianProcessClassifier': {
-                'measurements': self.gpc_measurements,
-                'acc': self.gpc_accuracy,
-                'auc': self.gpc_auc,
-                'log_loss': self.gpc_log_loss},
-            'RandomForestClassifier': {
-                'measurements': self.rfc_measurements,
-                'acc': self.rfc_accuracy,
-                'auc': self.rfc_auc,
-                'log_loss': self.rfc_log_loss},
-            'MLPClassifier': {
-                'measurements': self.mlp_measurements,
-                'acc': self.mlp_accuracy,
-                'auc': self.mlp_auc,
-                'log_loss': self.mlp_log_loss},
-            # 'TpotClassifier': {
-            #     'measurements': self.tpot_measurements,
-            #     'acc': self.tpot_accuracy,
-            #     'auc': self.tpot_auc,
-            #     'log_loss': self.tpot_log_loss},
-            'ComplementNB': {
-                'measurements': self.cnb_measurements,
-                'acc': self.cnb_accuracy,
-                'auc': self.cnb_auc,
-                'log_loss': self.cnb_log_loss},
-            'GradientBoostingClassifier': {
-                'measurements': self.gbc_measurements,
-                'acc': self.gbc_accuracy,
-                'auc': self.gbc_auc,
-                'log_loss': self.gbc_log_loss},
-            'NonLinearSVMClassifier': {
-                'measurements': self.nlsvm_measurements,
-                'acc': self.nlsvm_accuracy,
-                'auc': self.nlsvm_auc,
-                'log_loss': self.nlsvm_log_loss},
-            'FuzzyPatternClassifier': {
-                'measurements': self.fpc_measurements,
-                'acc': self.fpc_accuracy,
-                'auc': -1,
-                'log_loss': -1},
-            'FuzzyPatternClassifierGA': {
-                'measurements': self.fpcga_measurements,
-                'acc': self.fpcga_accuracy,
-                'auc': -1,
-                'log_loss': -1},
-            'maxVoting': {
-                'measurements': self.mv_measurements,
-                'acc': self.mv_accuracy,
-                'auc': -1,
-                'log_loss': -1},
-            'weightedMaxVoting': {
-                'measurements': self.wmv_measurements,
-                'acc': self.wmv_accuracy,
-                'auc': -1,
-                'log_loss': -1},
-            'customVoting': {
-                'measurements': self.cv_measurements,
-                'acc': self.cv_accuracy,
-                'auc': -1,
-                'log_loss': -1},
-        }
+        acc = {}
+        for model in self.getModels():
+            if model is not None:
+                accuracy = round(model.accuracy, 4) * 100
+                auc = None
+                tpr = round(model.measurements['TPR'], 4) * 100
+                tnr = round(model.measurements['TNR'], 4) * 100
+                ppv = round(model.measurements['PPV'], 4) * 100
+                log_loss = None
+                cv_test_score_mean = None
+                cv_test_score_std = None
+                cv_fit_time = None
+                time_test = model.time
+                if model.auc is not None:
+                    auc = round(model.auc, 4) * 100
+                if model.log_loss is not None:
+                    log_loss = round(model.log_loss, 2)
+                if model.cv_scores is not None:
+                    cv_test_score_mean = round(model.cv_scores['test_score'].mean(), 4) * 100
+                    cv_test_score_std = round(model.cv_scores['test_score'].std() * 2, 4) * 100  # 95% Confidence Interval
+                    cv_fit_time = round(model.cv_scores['fit_time'].mean(), 4)
+                #     print(model.cv_scores)
+                # print(cv_test_score_mean)
+                # print(cv_test_score_std)
+                # print(cv_fit_time)
+                acc[model.name] = {
+                    'Acc': accuracy,
+                    'AUC': auc,
+                    'TPR': tpr,
+                    'TNR': tnr,
+                    'PPV': ppv,
+                    'log loss': log_loss,
+                    'cv_test_score_mean': cv_test_score_mean,
+                    'cv_test_score_std': cv_test_score_std,
+                    'cv_fit_time': cv_fit_time,
+                    'Test Time(ms)': time_test
+                }
         return acc
 
     def getPredictions(self):
-        # pred = {
-        #     'GaussianProcessClassifier': self.gpc_predicted,
-        #     'RandomForestClassifier': self.rfc_predicted,
-        #     'MLPClassifier': self.mlp_predicted,
-        #     'ComplementNB': self.cnb_predicted,
-        #     'GradientBoostingClassifier': self.gbc_predicted,
-        #     'NonLinearSVMClassifier': self.nlsvm_predicted,
-        # }
-        pred = [
-            self.gpc_predicted,
-            self.rfc_predicted,
-            self.mlp_predicted,
-            # self.tpot_predicted,
-            self.cnb_predicted,
-            self.gbc_predicted,
-            self.nlsvm_predicted,
-            self.fpc_predicted,
-            self.fpcga_predicted
-        ]
+        pred = []
+        for model in self.getModels():
+            if model is not None:
+                pred.append(model.predicted)
+        # pred = [
+        #     self.gpc_predicted,
+        #     self.rfc_predicted,
+        #     self.mlp_predicted,
+        #     # self.tpot_predicted,
+        #     self.cnb_predicted,
+        #     self.gbc_predicted,
+        #     self.nlsvm_predicted,
+        #     self.fpc_predicted,
+        #     self.fpcga_predicted
+        # ]
         return pred
 
     def getClassifiersPrediction(self):
-        return {
-            'GaussianProcessClassifier': {'predicted': self.gpc_predicted, 'measurements': self.gpc_measurements},
-            'RandomForestClassifier': {'predicted': self.rfc_predicted, 'measurements': self.rfc_measurements},
-            'MLPClassifier': {'predicted': self.mlp_predicted, 'measurements': self.mlp_measurements},
-            # 'TpotClassifier': {'predicted': self.tpot_predicted, 'measurements': self.tpot_measurements},
-            'ComplementNB': {'predicted': self.cnb_predicted, 'measurements': self.cnb_measurements},
-            'GradientBoostingClassifier': {'predicted': self.gbc_predicted, 'measurements': self.gbc_measurements},
-            'NonLinearSVMClassifier': {'predicted': self.nlsvm_predicted, 'measurements': self.nlsvm_measurements},
-            'FuzzyPatternClassifier': {'predicted': self.fpc_predicted, 'measurements': self.fpc_measurements},
-            'FuzzyPatternClassifierGA': {'predicted': self.fpcga_predicted, 'measurements': self.fpcga_measurements}
-
-        }
+        pred = {}
+        for model in self.getModels():
+            if model is not None:
+                pred[model.name] = {
+                    'predicted': model.predicted,
+                    'measurements': model.measurements
+                }
+        return pred
 
     def saveModel(self, model, name, path='Models/'):
         if not os.path.exists(path):
@@ -292,81 +223,106 @@ class Analysis:
         }
 
     def GaussianProcessClassifier(self, X_train, X_test, y_train, y_test, model=None):
+        mModel = Model()
         if model is None:
             kernel = 1.0 * RBF(1.0)
             clf = GaussianProcessClassifier(kernel=kernel, random_state=110)
             clf.fit(X_train, y_train)
-            self.gpc = clf
+            mModel.model = clf
         else:
             clf = model
-        self.gpc_predicted = clf.predict(X_test)
-        self.gpc_predicted_proba = clf.predict_proba(X_test)
-        self.gpc_accuracy = accuracy_score(y_test, self.gpc_predicted)
-        self.gpc_log_loss = log_loss(y_test, self.gpc_predicted_proba)
-        probs = self.gpc_predicted_proba[:, 1]  # Keep Probabilities of the positive class only.
-        self.gpc_auc = roc_auc_score(y_test, probs)
-        self.gpc_measurements = self.getMeasurements(y_test, self.gpc_predicted)
-        # print("Test Score", gpc.score(X_test, y_test))  # equal to accuracy
+        mModel.name = "Gaussian Process"
+        scores = cross_validate(clf, X_train, y_train, cv=self.cv)  # ['test_score', 'fit_time', 'score_time']
+        start_time = datetime.now()
+        mModel.predicted = clf.predict(X_test)
+        mModel.time = round((datetime.now() - start_time).total_seconds() * 1000, 3)
+        mModel.predicted_proba = clf.predict_proba(X_test)
+        mModel.accuracy = accuracy_score(y_test, mModel.predicted)
+        mModel.log_loss = log_loss(y_test, mModel.predicted_proba)
+        probs = mModel.predicted_proba[:, 1]  # Keep Probabilities of the positive class only.
+        mModel.auc = roc_auc_score(y_test, probs)
+        mModel.measurements = self.getMeasurements(y_test, mModel.predicted)
+        mModel.cv_scores = scores
+        self.gpc = mModel
         if self.verbose:
-            print('-GaussianProcessClassifier:')
+            print(mModel.name)
+            print("Accuracy (.95 CI): %0.4f (+/- %0.4f)"
+                  % (scores['test_score'].mean(), scores['test_score'].std() * 2))
             print("Test Accuracy: %.4f"
-                  % self.gpc_accuracy)
+                  % mModel.accuracy)
             print("Test AUC: %.4f"
-                  % self.gpc_auc)
-            print("Log Marginal Likelihood: %.4f"
-                  % clf.log_marginal_likelihood(clf.kernel_.theta))
+                  % mModel.auc)
             print("Log-loss: %.4f"
-                  % self.gpc_log_loss)
+                  % mModel.log_loss)
         return clf
 
     def RandomForestClassifier(self, X_train, X_test, y_train, y_test, model=None):
+        mModel = Model()
         if model is None:
             clf = RandomForestClassifier(max_depth=2, random_state=110)
             clf.fit(X_train, y_train)
-            self.rfc = clf
+            mModel.model = clf
         else:
             clf = model
-        self.rfc_predicted = clf.predict(X_test)
-        self.rfc_predicted_proba = clf.predict_proba(X_test)
-        self.rfc_accuracy = accuracy_score(y_test, self.rfc_predicted)
-        self.rfc_log_loss = log_loss(y_test, self.rfc_predicted_proba)
-        probs = self.rfc_predicted_proba[:, 1]  # Keep Probabilities of the positive class only.
-        self.rfc_auc = roc_auc_score(y_test, probs)
-        self.rfc_measurements = self.getMeasurements(y_test, self.rfc_predicted)
+        mModel.name = "Random Forest"
+        scores = cross_validate(clf, X_train, y_train, cv=self.cv)  # ['test_score', 'fit_time', 'score_time']
+        start_time = datetime.now()
+        mModel.predicted = clf.predict(X_test)
+        mModel.time = round((datetime.now() - start_time).total_seconds() * 1000, 3)
+        mModel.predicted_proba = clf.predict_proba(X_test)
+        mModel.accuracy = accuracy_score(y_test, mModel.predicted)
+        mModel.log_loss = log_loss(y_test, mModel.predicted_proba)
+        probs = mModel.predicted_proba[:, 1]  # Keep Probabilities of the positive class only.
+        mModel.auc = roc_auc_score(y_test, probs)
+        mModel.measurements = self.getMeasurements(y_test, mModel.predicted)
+        mModel.cv_scores = scores
+        self.rfc = mModel
+        if self.verbose:
+            print(mModel.name)
+            print("Accuracy (.95 CI): %0.4f (+/- %0.4f)"
+                  % (scores['test_score'].mean(), scores['test_score'].std() * 2))
+            print("Test Accuracy: %.4f"
+                  % mModel.accuracy)
+            print("Test AUC: %.4f"
+                  % mModel.auc)
+            print("Log-loss: %.4f"
+                  % mModel.log_loss)
+
         # fpr, tpr, thresholds = roc_curve(y_test, probs)
         # self.plot_roc_curve(fpr, tpr, self.rfc_auc)
-        if self.verbose:
-            print('-RandomForestClassifier:')
-            print("Test Accuracy: %.4f"
-                  % self.rfc_accuracy)
-            print("Test AUC: %.4f"
-                  % self.rfc_auc)
-            print("Log-loss: %.4f"
-                  % self.rfc_log_loss)
         return clf
 
     def MLPClassifier(self, X_train, X_test, y_train, y_test, model=None):
+        mModel = Model()
         if model is None:
             clf = MLPClassifier(solver='lbfgs', alpha=1e-5, hidden_layer_sizes=(500, 2), random_state=110)
             clf.fit(X_train, y_train)
-            self.mlp = clf
+            mModel.model = clf
         else:
             clf = model
-        self.mlp_predicted = clf.predict(X_test)
-        self.mlp_predicted_proba = clf.predict_proba(X_test)
-        self.mlp_accuracy = accuracy_score(y_test, self.mlp_predicted)
-        self.mlp_log_loss = log_loss(y_test, self.mlp_predicted_proba)
-        probs = self.mlp_predicted_proba[:, 1]  # Keep Probabilities of the positive class only.
-        self.mlp_auc = roc_auc_score(y_test, probs)
-        self.mlp_measurements = self.getMeasurements(y_test, self.mlp_predicted)
+        mModel.name = "MLP"
+        scores = cross_validate(clf, X_train, y_train, cv=self.cv)  # ['test_score', 'fit_time', 'score_time']
+        start_time = datetime.now()
+        mModel.predicted = clf.predict(X_test)
+        mModel.time = round((datetime.now() - start_time).total_seconds() * 1000, 3)
+        mModel.predicted_proba = clf.predict_proba(X_test)
+        mModel.accuracy = accuracy_score(y_test, mModel.predicted)
+        mModel.log_loss = log_loss(y_test, mModel.predicted_proba)
+        probs = mModel.predicted_proba[:, 1]  # Keep Probabilities of the positive class only.
+        mModel.auc = roc_auc_score(y_test, probs)
+        mModel.measurements = self.getMeasurements(y_test, mModel.predicted)
+        mModel.cv_scores = scores
+        self.mlp = mModel
         if self.verbose:
-            print('-MLPClassifier:')
+            print(mModel.name)
+            print("Accuracy (.95 CI): %0.4f (+/- %0.4f)"
+                  % (scores['test_score'].mean(), scores['test_score'].std() * 2))
             print("Test Accuracy: %.4f"
-                  % self.mlp_accuracy)
+                  % mModel.accuracy)
             print("Test AUC: %.4f"
-                  % self.mlp_auc)
+                  % mModel.auc)
             print("Log-loss: %.4f"
-                  % self.mlp_log_loss)
+                  % mModel.log_loss)
         return clf
 
     # def TpotClassifier(self, X_train, X_test, y_train, y_test, model=None):
@@ -395,51 +351,69 @@ class Analysis:
     #     return clf
 
     def ComplementNB(self, X_train, X_test, y_train, y_test, model=None):
+        mModel = Model()
         if model is None:
             clf = ComplementNB()
             clf.fit(X_train, y_train)
-            self.cnb = clf
+            mModel.model = clf
         else:
             clf = model
-        self.cnb_predicted = clf.predict(X_test)
-        self.cnb_predicted_proba = clf.predict_proba(X_test)
-        self.cnb_accuracy = accuracy_score(y_test, self.cnb_predicted)
-        self.cnb_log_loss = log_loss(y_test, self.cnb_predicted_proba)
-        probs = self.cnb_predicted_proba[:, 1]  # Keep Probabilities of the positive class only.
-        self.cnb_auc = roc_auc_score(y_test, probs)
-        self.cnb_measurements = self.getMeasurements(y_test, self.cnb_predicted)
+        mModel.name = "Complement NB"
+        scores = cross_validate(clf, X_train, y_train, cv=self.cv)  # ['test_score', 'fit_time', 'score_time']
+        start_time = datetime.now()
+        mModel.predicted = clf.predict(X_test)
+        mModel.time = round((datetime.now() - start_time).total_seconds() * 1000, 3)
+        mModel.predicted_proba = clf.predict_proba(X_test)
+        mModel.accuracy = accuracy_score(y_test, mModel.predicted)
+        mModel.log_loss = log_loss(y_test, mModel.predicted_proba)
+        probs = mModel.predicted_proba[:, 1]  # Keep Probabilities of the positive class only.
+        mModel.auc = roc_auc_score(y_test, probs)
+        mModel.measurements = self.getMeasurements(y_test, mModel.predicted)
+        mModel.cv_scores = scores
+        self.cnb = mModel
         if self.verbose:
-            print('-ComplementNB:')
+            print(mModel.name)
+            print("Accuracy (.95 CI): %0.4f (+/- %0.4f)"
+                  % (scores['test_score'].mean(), scores['test_score'].std() * 2))
             print("Test Accuracy: %.4f"
-                  % self.cnb_accuracy)
+                  % mModel.accuracy)
             print("Test AUC: %.4f"
-                  % self.cnb_auc)
+                  % mModel.auc)
             print("Log-loss: %.4f"
-                  % self.cnb_log_loss)
+                  % mModel.log_loss)
         return clf
 
     def GradientBoostingClassifier(self, X_train, X_test, y_train, y_test, model=None):
+        mModel = Model()
         if model is None:
             clf = GradientBoostingClassifier(n_estimators=100, learning_rate=1.0, max_depth=1, random_state=110)
             clf.fit(X_train, y_train)
-            self.gbc = clf
+            mModel.model = clf
         else:
             clf = model
-        self.gbc_predicted = clf.predict(X_test)
-        self.gbc_predicted_proba = clf.predict_proba(X_test)
-        self.gbc_accuracy = accuracy_score(y_test, self.gbc_predicted)
-        self.gbc_log_loss = log_loss(y_test, self.gbc_predicted_proba)
-        probs = self.gbc_predicted_proba[:, 1]  # Keep Probabilities of the positive class only.
-        self.gbc_auc = roc_auc_score(y_test, probs)
-        self.gbc_measurements = self.getMeasurements(y_test, self.gbc_predicted)
+        mModel.name = "Gradient Boosting"
+        scores = cross_validate(clf, X_train, y_train, cv=self.cv)  # ['test_score', 'fit_time', 'score_time']
+        start_time = datetime.now()
+        mModel.predicted = clf.predict(X_test)
+        mModel.time = round((datetime.now() - start_time).total_seconds() * 1000, 3)
+        mModel.predicted_proba = clf.predict_proba(X_test)
+        mModel.accuracy = accuracy_score(y_test, mModel.predicted)
+        mModel.log_loss = log_loss(y_test, mModel.predicted_proba)
+        probs = mModel.predicted_proba[:, 1]  # Keep Probabilities of the positive class only.
+        mModel.auc = roc_auc_score(y_test, probs)
+        mModel.measurements = self.getMeasurements(y_test, mModel.predicted)
+        mModel.cv_scores = scores
+        self.gbc = mModel
         if self.verbose:
-            print('-GradientBoostingClassifier:')
+            print(mModel.name)
+            print("Accuracy (.95 CI): %0.4f (+/- %0.4f)"
+                  % (scores['test_score'].mean(), scores['test_score'].std() * 2))
             print("Test Accuracy: %.4f"
-                  % self.gbc_accuracy)
+                  % mModel.accuracy)
             print("Test AUC: %.4f"
-                  % self.gbc_auc)
+                  % mModel.auc)
             print("Log-loss: %.4f"
-                  % self.gbc_log_loss)
+                  % mModel.log_loss)
         return clf
 
     def NonLinearSVMClassifier(self, X_train, X_test, y_train, y_test, model=None):
@@ -447,83 +421,104 @@ class Analysis:
         if model is None:
             clf = svm.SVC(gamma='auto', kernel='rbf', degree=3, class_weight='balanced', probability=True)
             clf.fit(X_train, y_train)
-            self.nlsvm = clf
+            mModel.model = clf
         else:
             clf = model
         # TODO: verify this by printing separated data of each classifier
         # It's better to use same separation of data for cv of classifiers
+        mModel.name = "Non Linear SVM"
         scores = cross_validate(clf, X_train, y_train, cv=self.cv)  # ['test_score', 'fit_time', 'score_time']
-        -----
-        mModel.name = "NonLinearSVMClassifier"
+        start_time = datetime.now()
         mModel.predicted = clf.predict(X_test)
-        self.nlsvm_predicted = clf.predict(X_test)
-        self.nlsvm_predicted_proba = clf.predict_proba(X_test)
-        self.nlsvm_accuracy = accuracy_score(y_test, self.nlsvm_predicted)
-        self.nlsvm_log_loss = log_loss(y_test, self.nlsvm_predicted_proba)
-        probs = self.nlsvm_predicted_proba[:, 1]  # Keep Probabilities of the positive class only.
-        self.nlsvm_auc = roc_auc_score(y_test, probs)
-        self.nlsvm_measurements = self.getMeasurements(y_test, self.nlsvm_predicted)
+        mModel.time = round((datetime.now() - start_time).total_seconds() * 1000, 3)
+        mModel.predicted_proba = clf.predict_proba(X_test)
+        mModel.accuracy = accuracy_score(y_test, mModel.predicted)
+        mModel.log_loss = log_loss(y_test, mModel.predicted_proba)
+        probs = mModel.predicted_proba[:, 1]  # Keep Probabilities of the positive class only.
+        mModel.auc = roc_auc_score(y_test, probs)
+        mModel.measurements = self.getMeasurements(y_test, mModel.predicted)
+        mModel.cv_scores = scores
+        self.nlsvm = mModel
         if self.verbose:
-            print('-NonLinearSVMClassifier:')
+            print(mModel.name)
             print("Accuracy (.95 CI): %0.4f (+/- %0.4f)"
                   % (scores['test_score'].mean(), scores['test_score'].std() * 2))
             print("Test Accuracy: %.4f"
-                  % self.nlsvm_accuracy)
+                  % mModel.accuracy)
             print("Test AUC: %.4f"
-                  % self.nlsvm_auc)
+                  % mModel.auc)
             print("Log-loss: %.4f"
-                  % self.nlsvm_log_loss)
+                  % mModel.log_loss)
         return clf
 
     def FuzzyPatternClassifier(self, X_train, X_test, y_train, y_test, model=None):
+        mModel = Model()
         if model is None:
             clf = FuzzyPatternClassifier()
             clf.fit(X_train, y_train)
-            self.fpc = clf
+            mModel.model = clf
         else:
             clf = model
-        self.fpc_predicted = clf.predict(X_test)
-        # self.nlsvm_predicted_proba = clf.predict_proba(X_test)
-        self.fpc_accuracy = accuracy_score(y_test, self.fpc_predicted)
-        # self.nlsvm_log_loss = log_loss(y_test, self.nlsvm_predicted_proba)
-        # probs = self.nlsvm_predicted_proba[:, 1]  # Keep Probabilities of the positive class only.
-        # self.nlsvm_auc = roc_auc_score(y_test, probs)
-        self.fpc_measurements = self.getMeasurements(y_test, self.fpc_predicted)
+        mModel.name = "Fuzzy Pattern"
+        scores = cross_validate(clf, X_train, y_train, cv=self.cv)  # ['test_score', 'fit_time', 'score_time']
+        start_time = datetime.now()
+        mModel.predicted = clf.predict(X_test)
+        mModel.time = round((datetime.now() - start_time).total_seconds() * 1000, 3)
+        # mModel.predicted_proba = clf.predict_proba(X_test)
+        mModel.accuracy = accuracy_score(y_test, mModel.predicted)
+        # mModel.log_loss = log_loss(y_test, mModel.predicted_proba)
+        # probs = mModel.predicted_proba[:, 1]  # Keep Probabilities of the positive class only.
+        # mModel.auc = roc_auc_score(y_test, probs)
+        mModel.measurements = self.getMeasurements(y_test, mModel.predicted)
+        mModel.cv_scores = scores
+        self.fpc = mModel
         if self.verbose:
-            print('-FuzzyPatternClassifier:')
+            print(mModel.name)
+            print("Accuracy (.95 CI): %0.4f (+/- %0.4f)"
+                  % (scores['test_score'].mean(), scores['test_score'].std() * 2))
             print("Test Accuracy: %.4f"
-                  % self.fpc_accuracy)
+                  % mModel.accuracy)
             # print("Test AUC: %.4f"
-            #       % self.nlsvm_auc)
+            #       % mModel.auc)
             # print("Log-loss: %.4f"
-            #       % self.nlsvm_log_loss)
+            #       % mModel.log_loss)
         return clf
 
     def FuzzyPatternClassifierGA(self, X_train, X_test, y_train, y_test, model=None):
+        mModel = Model()
         if model is None:
             clf = FuzzyPatternClassifierGA()
             clf.fit(X_train, y_train)
-            self.fpcga = clf
+            mModel.model = clf
         else:
             clf = model
-        self.fpcga_predicted = clf.predict(X_test)
-        # self.nlsvm_predicted_proba = clf.predict_proba(X_test)
-        self.fpcga_accuracy = accuracy_score(y_test, self.fpcga_predicted)
-        # self.nlsvm_log_loss = log_loss(y_test, self.nlsvm_predicted_proba)
-        # probs = self.nlsvm_predicted_proba[:, 1]  # Keep Probabilities of the positive class only.
-        # self.nlsvm_auc = roc_auc_score(y_test, probs)
-        self.fpcga_measurements = self.getMeasurements(y_test, self.fpcga_predicted)
+        mModel.name = "Fuzzy Pattern GA"
+        scores = cross_validate(clf, X_train, y_train, cv=self.cv)  # ['test_score', 'fit_time', 'score_time']
+        start_time = datetime.now()
+        mModel.predicted = clf.predict(X_test)
+        mModel.time = round((datetime.now() - start_time).total_seconds() * 1000, 3)
+        # mModel.predicted_proba = clf.predict_proba(X_test)
+        mModel.accuracy = accuracy_score(y_test, mModel.predicted)
+        # mModel.log_loss = log_loss(y_test, mModel.predicted_proba)
+        # probs = mModel.predicted_proba[:, 1]  # Keep Probabilities of the positive class only.
+        # mModel.auc = roc_auc_score(y_test, probs)
+        mModel.measurements = self.getMeasurements(y_test, mModel.predicted)
+        mModel.cv_scores = scores
+        self.fpcga = mModel
         if self.verbose:
-            print('-FuzzyPatternClassifierGA:')
+            print(mModel.name)
+            print("Accuracy (.95 CI): %0.4f (+/- %0.4f)"
+                  % (scores['test_score'].mean(), scores['test_score'].std() * 2))
             print("Test Accuracy: %.4f"
-                  % self.fpcga_accuracy)
+                  % mModel.accuracy)
             # print("Test AUC: %.4f"
-            #       % self.nlsvm_auc)
+            #       % mModel.auc)
             # print("Log-loss: %.4f"
-            #       % self.nlsvm_log_loss)
+            #       % mModel.log_loss)
         return clf
 
     def maxVoting(self, y_test):
+        mModel = Model()
         result = []
         length = 0
         for i in self.getPredictions():
@@ -532,6 +527,7 @@ class Analysis:
                 break
         if length == 0:
             raise ValueError('All classifiers predictions are None')
+        start_time = datetime.now()
         for idx in range(length):
             preds = []
             for classifier in self.getPredictions():
@@ -539,23 +535,27 @@ class Analysis:
                     preds.append(classifier[idx])
             result.append(np.argmax(np.bincount(preds)) > 0)
             # print(preds, np.argmax(np.bincount(preds)) > 0)
-        self.mv_predicted = result
+        mModel.time = round((datetime.now() - start_time).total_seconds() * 1000, 3)
+        mModel.name = "MaxVoting"
+        mModel.predicted = result
         # self.mv_predicted_proba = clf.predict_proba(X_test)
-        self.mv_accuracy = accuracy_score(y_test, self.mv_predicted)
+        mModel.accuracy = accuracy_score(y_test, mModel.predicted)
         # self.mv_log_loss = log_loss(y_test, self.mv_predicted_proba)
         # probs = self.mv_predicted_proba[:, 1]  # Keep Probabilities of the positive class only.
         # self.mv_auc = roc_auc_score(y_test, probs)
-        self.mv_measurements = self.getMeasurements(y_test, self.mv_predicted)
+        mModel.measurements = self.getMeasurements(y_test, mModel.predicted)
+        self.mv = mModel
         if self.verbose:
-            print('-maxVoting:')
+            print(mModel.name)
             print("Test Accuracy: %.4f"
-                  % self.mv_accuracy)
+                  % mModel.accuracy)
             # print("Test AUC: %.4f"
             #       % self.nlsvm_auc)
             # print("Log-loss: %.4f"
             #       % self.nlsvm_log_loss)
 
     def weightedMaxVoting(self, y_test, weights):
+        mModel = Model()
         result = []
         length = 0
         for i in self.getPredictions():
@@ -564,6 +564,7 @@ class Analysis:
                 break
         if length == 0:
             raise ValueError('All classifiers predictions are None')
+        start_time = datetime.now()
         for idx in range(length):
             preds = []
             for classifier in self.getPredictions():
@@ -572,15 +573,18 @@ class Analysis:
             result.append(np.average(preds, weights=weights) > 0.5)
             # result.append(np.argmax(np.bincount(preds)) > 0)
             # print(preds, np.average(preds, weights=weights))
-        self.wmv_predicted = result
+        mModel.time = round((datetime.now() - start_time).total_seconds() * 1000, 3)
+        mModel.name = "Weighted Max Voting"
+        mModel.predicted = result
         # self.mv_predicted_proba = clf.predict_proba(X_test)
-        self.wmv_accuracy = accuracy_score(y_test, self.wmv_predicted)
+        mModel.accuracy = accuracy_score(y_test, mModel.predicted)
         # self.mv_log_loss = log_loss(y_test, self.mv_predicted_proba)
         # probs = self.mv_predicted_proba[:, 1]  # Keep Probabilities of the positive class only.
         # self.mv_auc = roc_auc_score(y_test, probs)
-        self.wmv_measurements = self.getMeasurements(y_test, self.wmv_predicted)
+        mModel.measurements = self.getMeasurements(y_test, mModel.predicted)
+        self.wmv = mModel
         if self.verbose:
-            print('-weightedMaxVoting:')
+            print(mModel.name)
             print("Test Accuracy: %.4f"
                   % self.wmv_accuracy)
             # print("Test AUC: %.4f"
@@ -589,6 +593,7 @@ class Analysis:
             #       % self.nlsvm_log_loss)
 
     def customVoting(self, y_test, size=2, threshold_tpr=.7, threshold_tnr=.7):
+        mModel = Model()
         result = []
         length = 0
         for i in self.getPredictions():
@@ -597,6 +602,7 @@ class Analysis:
                 break
         if length == 0:
             raise ValueError('All classifiers predictions are None')
+        start_time = datetime.now()
         for sample_idx in range(length):
             # preds = []
             predictions = []
@@ -644,17 +650,20 @@ class Analysis:
             #     print('predicted:', result[sample_idx], 'sum:', sum, 'actual:', y_test[sample_idx], '\n')
             # else:
             #     print('OK, sum:', sum, '\n')
-        self.cv_predicted = result
+        mModel.time = round((datetime.now() - start_time).total_seconds() * 1000, 3)
+        mModel.name = "Custom Voting"
+        mModel.predicted = result
         # self.mv_predicted_proba = clf.predict_proba(X_test)
-        self.cv_accuracy = accuracy_score(y_test, self.cv_predicted)
+        mModel.accuracy = accuracy_score(y_test, mModel.predicted)
         # self.mv_log_loss = log_loss(y_test, self.mv_predicted_proba)
         # probs = self.mv_predicted_proba[:, 1]  # Keep Probabilities of the positive class only.
         # self.mv_auc = roc_auc_score(y_test, probs)
-        self.cv_measurements = self.getMeasurements(y_test, self.cv_predicted)
+        mModel.measurements = self.getMeasurements(y_test, mModel.predicted)
+        self.custom_voting = mModel
         if self.verbose:
-            print('-customVoting:')
+            print(mModel.name)
             print("Test Accuracy: %.4f"
-                  % self.cv_accuracy)
+                  % mModel.accuracy)
             # print("Test AUC: %.4f"
             #       % self.nlsvm_auc)
             # print("Log-loss: %.4f"
@@ -710,45 +719,45 @@ class Analysis:
     #               % self.nlsvm_log_loss)
     #     return clf
 
-    def evaluateData(self, model, X_test, y_test):
-        if model == "gpc":
-            clf = self.gpc
-        elif model == "rfc":
-            clf = self.rfc
-        elif model == "mlp":
-            clf = self.mlp
-        elif model == "cnb":
-            clf = self.cnb
-        elif model == "gbc":
-            clf = self.gbc
-        elif model == "nlsvm":
-            clf = self.nlsvm
-        else:
-            return
-        predicted = clf.predict(X_test)
-        predicted_proba = clf.predict_proba(X_test)
-        accuracy = accuracy_score(y_test, predicted)
-        logloss = log_loss(y_test, predicted_proba)
-        probs = predicted_proba[:, 1]  # Keep Probabilities of the positive class only.
-        auc = roc_auc_score(y_test, probs)
-        return predicted, predicted_proba, accuracy, auc, logloss
-
-    def evaluateModelData(self, model, X_test, y_test):
-        clf = model
-        predicted = clf.predict(X_test)
-        predicted_proba = clf.predict_proba(X_test)
-        accuracy = accuracy_score(y_test, predicted)
-        logloss = log_loss(y_test, predicted_proba)
-        probs = predicted_proba[:, 1]  # Keep Probabilities of the positive class only.
-        auc = roc_auc_score(y_test, probs)
-        return predicted, predicted_proba, accuracy, auc, logloss
-
-    # evaluate a model
-    # TODO
-    def evaluateModel(self, X, y, model):
-        # define evaluation procedure
-        cv = RepeatedStratifiedKFold(n_splits=5, n_repeats=3, random_state=1)
-        # evaluate model
-        scores = cross_val_score(model, X, y, scoring='accuracy', cv=cv, n_jobs=-1)
-        # print('Mean Accuracy: %.3f (%.3f)' % (mean(scores), std(scores)))
-        return scores
+    # def evaluateData(self, model, X_test, y_test):
+    #     if model == "gpc":
+    #         clf = self.gpc
+    #     elif model == "rfc":
+    #         clf = self.rfc
+    #     elif model == "mlp":
+    #         clf = self.mlp
+    #     elif model == "cnb":
+    #         clf = self.cnb
+    #     elif model == "gbc":
+    #         clf = self.gbc
+    #     elif model == "nlsvm":
+    #         clf = self.nlsvm
+    #     else:
+    #         return
+    #     predicted = clf.predict(X_test)
+    #     predicted_proba = clf.predict_proba(X_test)
+    #     accuracy = accuracy_score(y_test, predicted)
+    #     logloss = log_loss(y_test, predicted_proba)
+    #     probs = predicted_proba[:, 1]  # Keep Probabilities of the positive class only.
+    #     auc = roc_auc_score(y_test, probs)
+    #     return predicted, predicted_proba, accuracy, auc, logloss
+    #
+    # def evaluateModelData(self, model, X_test, y_test):
+    #     clf = model
+    #     predicted = clf.predict(X_test)
+    #     predicted_proba = clf.predict_proba(X_test)
+    #     accuracy = accuracy_score(y_test, predicted)
+    #     logloss = log_loss(y_test, predicted_proba)
+    #     probs = predicted_proba[:, 1]  # Keep Probabilities of the positive class only.
+    #     auc = roc_auc_score(y_test, probs)
+    #     return predicted, predicted_proba, accuracy, auc, logloss
+    #
+    # # evaluate a model
+    # # TODO
+    # def evaluateModel(self, X, y, model):
+    #     # define evaluation procedure
+    #     cv = RepeatedStratifiedKFold(n_splits=5, n_repeats=3, random_state=1)
+    #     # evaluate model
+    #     scores = cross_val_score(model, X, y, scoring='accuracy', cv=cv, n_jobs=-1)
+    #     # print('Mean Accuracy: %.3f (%.3f)' % (mean(scores), std(scores)))
+    #     return scores
