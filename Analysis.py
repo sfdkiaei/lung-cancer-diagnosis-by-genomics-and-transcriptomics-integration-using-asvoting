@@ -669,55 +669,46 @@ class Analysis:
             # print("Log-loss: %.4f"
             #       % self.nlsvm_log_loss)
 
-    # def owa(self, X_train, X_test, y_train, y_test, num_args, lr=0.9, epoch_num=150):
-    #     # Initialize
-    #     landa = np.random.rand(num_args)
-    #     # landa = np.zeros(num_args)
-    #     w = np.ones(num_args) * (1.0 / num_args)
-    #     d_estimate = np.sum([np.exp(landa[i]) / np.sum(np.exp(landa)) for i in range(num_args)])
-    #     # d_estimate = 0
-    #
-    #     # Train
-    #     for epoch in range(epoch_num):
-    #         lr /= 1.001
-    #         for idx, sample in enumerate(X_train):
-    #             b = np.sort(sample)[::-1]
-    #             diff = w * (b - d_estimate) * (d_estimate - y_train[idx])
-    #             landa -= lr * diff
-    #             w = [np.exp(landa[i]) / np.sum(np.exp(landa)) if np.exp(landa[i]) / np.sum(
-    #                 np.exp(landa)) > 1e-5 else 0
-    #                  for
-    #                  i in range(num_args)]
-    #             # print(w)
-    #             d_estimate = np.sum(b * w)
-    #
-    #     # print('\nLambdas:', np.round(landa, 2))
-    #     # print('Weights:', np.round(w, 2))
-    #     # print('\nSample\t\tAggregated Value\tEstimated Value')
-    #     # print('-----------------------------------------------')
-    #     # for idx, sample in enumerate(train_data):
-    #     #     print('Sample', (idx + 1), '\t\t', train_label[idx], '\t\t\t', np.round(np.sum(np.sort(train_data[idx])[::-1] * w), 2))
-    #     # Prediction
-    #     self.owa_predicted = []
-    #     for idx, sample in enumerate(X_test):
-    #         b = np.sort(sample)[::-1]
-    #         d_estimate = np.sum(b * w)
-    #         self.owa_predicted.append(d_estimate)
-    #     # self.nlsvm_predicted_proba = clf.predict_proba(X_test)
-    #     self.nlsvm_accuracy = accuracy_score(y_test, self.nlsvm_predicted)
-    #     self.nlsvm_log_loss = log_loss(y_test, self.nlsvm_predicted_proba)
-    #     probs = self.nlsvm_predicted_proba[:, 1]  # Keep Probabilities of the positive class only.
-    #     self.nlsvm_auc = roc_auc_score(y_test, probs)
-    #     self.nlsvm_measurements = self.getMeasurements(y_test, self.nlsvm_predicted)
-    #     if self.verbose:
-    #         print('-NonLinearSVMClassifier:')
-    #         print("Test Accuracy: %.4f"
-    #               % self.nlsvm_accuracy)
-    #         print("Test AUC: %.4f"
-    #               % self.nlsvm_auc)
-    #         print("Log-loss: %.4f"
-    #               % self.nlsvm_log_loss)
-    #     return clf
+    def owa(self, X_train, X_test, y_train, y_test, num_args, lr=0.9, epoch_num=150):
+        # Initialize
+        landa = np.random.rand(num_args)
+        # landa = np.zeros(num_args)
+        w = np.ones(num_args) * (1.0 / num_args)
+        d_estimate = np.sum([np.exp(landa[i]) / np.sum(np.exp(landa)) for i in range(num_args)])
+        # d_estimate = 0
+
+        # Train
+        for epoch in range(epoch_num):
+            lr /= 1.001
+            for idx, sample in enumerate(X_train):
+                b = np.sort(sample)[::-1]
+                diff = w * (b - d_estimate) * (d_estimate - y_train[idx])
+                landa -= lr * diff
+                w = [np.exp(landa[i]) / np.sum(np.exp(landa)) if np.exp(landa[i]) / np.sum(
+                    np.exp(landa)) > 1e-5 else 0
+                     for
+                     i in range(num_args)]
+                # print(w)
+                d_estimate = np.sum(b * w)
+
+        # print('\nLambdas:', np.round(landa, 2))
+        # print('Weights:', np.round(w, 2))
+        # print('\nSample\t\tAggregated Value\tEstimated Value')
+        # print('-----------------------------------------------')
+        # for idx, sample in enumerate(train_data):
+        #     print('Sample', (idx + 1), '\t\t', train_label[idx], '\t\t\t', np.round(np.sum(np.sort(train_data[idx])[::-1] * w), 2))
+        # Prediction
+        self.owa_predicted = []
+        for idx, sample in enumerate(X_test):
+            b = np.sort(sample)[::-1]
+            d_estimate = np.sum(b * w)
+            self.owa_predicted.append(d_estimate)
+        self.owa_accuracy = accuracy_score(y_test, self.owa_predicted)
+        self.owa_measurements = self.getMeasurements(y_test, self.owa_predicted)
+        if self.verbose:
+            print('-OWA:')
+            print("Test Accuracy: %.4f"
+                  % self.owa_accuracy)
 
     # def evaluateData(self, model, X_test, y_test):
     #     if model == "gpc":

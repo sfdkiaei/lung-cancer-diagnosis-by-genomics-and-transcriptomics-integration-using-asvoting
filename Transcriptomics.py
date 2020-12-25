@@ -295,7 +295,7 @@ if __name__ == "__main__":
     balancer = BalancingDataset()
 
     # analyzer = Analysis(verbose=False)
-    analyzeData(df_tp, df_maf, df_test=df_lusc_tp, save=True, statisticsTest=False)
+    analyzeData(df_tp, df_maf, df_test=df_lusc_tp, save=True, statisticsTest=False, featureSize=50)
 
     # evaluateData(df_lusc_tp)
 
