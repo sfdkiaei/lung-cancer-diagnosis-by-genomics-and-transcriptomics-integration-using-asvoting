@@ -1,0 +1,23 @@
+# Reference: [1] K. Wadowska, I. Bil-Lula, Ł. Trembecki, and M. Śliwińska-Mossoń, “Genetic markers in lung cancer diagnosis: A review,” Int. J. Mol. Sci., vol. 21, no. 13, pp. 1–24, 2020.
+EGFR
+KRAS
+MET
+ALK
+BRAF
+ROS1
+RET
+NTRK
+HER2
+PTEN
+PDGFRA
+PIK3CA
+TP53
+ERBB2
+TERT
+CDKN2A
+FGFR
+NF1
+DDR2
+PDGFRA
+SOX2
+CDKN2A

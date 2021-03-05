@@ -1,7 +1,7 @@
 import time
-
+from datetime import datetime
 from sklearn import preprocessing
-
+from operator import itemgetter
 from Analysis import Analysis
 from BalancingDataset import BalancingDataset
 from FeatureVectorGenerator import FeatureVectorGenerator
@@ -20,6 +20,8 @@ from tqdm import tqdm
 import warnings
 import mygene
 from sklearn.model_selection import ShuffleSplit
+import os
+import winsound
 
 warnings.filterwarnings("ignore")
 plt.style.use('ggplot')
@@ -127,7 +129,26 @@ def printRowsContainingNan(dataFrame):
     print(df1.to_string())
 
 
-def runStatisticsTest(X, y, feature_vectors, sample_num):
+def getDifferentiallyExpressedGenes(X: pd.DataFrame, y, sample_num: int = 40, genes_count: int = 50):
+    print('Getting differentially expressed genes')
+    st = StatisticalTest()
+    samples_tumor = X[y == True].sample(n=sample_num)
+    samples_normal = X[y == False].sample(n=sample_num)
+    pvalues = {}
+    for i, gene in enumerate(X):
+        pvalue = st.tTest(
+            samples_tumor.loc[:, gene].values.flatten().tolist(),
+            samples_normal.loc[:, gene].values.flatten().tolist()
+        )
+        pvalues[gene] = pvalue
+    pvalues_sorted = dict(sorted(pvalues.items(), key=itemgetter(1))[:genes_count])
+    with open(str(start) + '/differentiallyExpressedGenes.txt', 'w') as f:
+        f.write('# gene,pvalue\n')
+        for gene in pvalues_sorted:
+            f.write(str(gene) + ',' + str(pvalues_sorted[gene]) + '\n')
+
+
+def runStatisticsTest(X, y, feature_vectors, sample_num: int, biomarkers: list = None):
     center = 0.05
     housekeepings = open('Data/genes_housekeeping.txt', 'r').read().split('\n')
     fv_housekeeping = []
@@ -159,8 +180,22 @@ def runStatisticsTest(X, y, feature_vectors, sample_num):
                                        cmap="plasma", cbarlabel="P-Value", center=center)
             plt.title(feature_vector)
             fig.tight_layout()
-            plt.savefig(feature_vector + '-pvalue_' + str(center) + '.png')
+            plt.savefig(str(start) + '/' + feature_vector + '-pvalue_' + str(center) + '.png')
             plt.show()
+            plt.close()
+
+            # save each feature vector genes
+            with open(str(start) + '/' + feature_vector + '.txt', 'w') as f:
+                for i in range(len(fv_symbol)):
+                    f.write(fv[i] + ',' + fv_symbol[i] + '\n')
+
+            if biomarkers is not None and len(biomarkers) > 0:
+                labels = [feature_vector, 'biomarker']
+                visualization.venn2Diagram(set(fv_symbol), set(biomarkers), labels)
+                fig.tight_layout()
+                plt.savefig(str(start) + '/' + feature_vector + '_venn' + '.png')
+                plt.show()
+                plt.close()
 
 
 def splitData(df_tp, df_test=None, normalize=True):
@@ -202,10 +237,18 @@ def analyzeData(df_tp, df_maf, df_test=None, normalize=True, save=False, statist
     generator.MAFGenes(X_train, y_train, X_test, df_maf, size=featureSize)
     generator.PCA(X_train, y_train, X_test, featureSize)
     generator.KernelPCA(X_train, y_train, X_test, featureSize, "rbf")
+    generator.integrateMAFGenes(X_train, y_train, X_test, sample_num=40)
 
     if statisticsTest:
         feature_vectors = generator.getFeatureVectors()
-        runStatisticsTest(X_test, y_test, feature_vectors, statisticsTestSampleNum)
+        with open(biomarkers_path, encoding='utf-8') as f:
+            lines = f.readlines()
+            biomarkers = []
+            for line in lines:
+                if not line.startswith('#') and len(line) > 0:
+                    biomarkers.append(line.strip())
+        runStatisticsTest(X_test, y_test, feature_vectors, statisticsTestSampleNum, biomarkers=biomarkers)
+    getDifferentiallyExpressedGenes(X_test, y_test, sample_num=40, genes_count=FEATURE_SIZE)
 
     result = []
     for key, value in tqdm(generator.getArrays().items()):
@@ -237,27 +280,34 @@ def analyzeData(df_tp, df_maf, df_test=None, normalize=True, save=False, statist
                     columns = list(score.keys())
     columns = ['Feature Vector', 'Classifier'] + columns
     result = pd.DataFrame(result, columns=columns
-                                           #  ['Feature Vector', 'Classifier',
-                                           # 'Accuracy',
-                                           # 'AUC',
-                                           # 'Sensitivity(TPR)',
-                                           # 'Specificity(TNR)',
-                                           # 'Precision(PPV)',
-                                           # 'Log Loss',
-                                           # '[CV] Test Score - mean',
-                                           # '[CV] Test Score - .95 CI',
-                                           # '[CV] Fit Time'
-                                           # ]
+                          #  ['Feature Vector', 'Classifier',
+                          # 'Accuracy',
+                          # 'AUC',
+                          # 'Sensitivity(TPR)',
+                          # 'Specificity(TNR)',
+                          # 'Precision(PPV)',
+                          # 'Log Loss',
+                          # '[CV] Test Score - mean',
+                          # '[CV] Test Score - .95 CI',
+                          # '[CV] Fit Time'
+                          # ]
                           )
-    print(result)
+    # print(result)
     if save:
-        timestr = time.strftime("%Y%m%d-%H%M%S")
+        # timestr = time.strftime("%Y%m%d-%H%M%S")
         # result.to_csv("result_" + timestr + ".csv")
-        result.to_excel("result_" + timestr + ".xlsx")
+        result.to_excel(str(start) + "/results.xlsx")
 
 
 if __name__ == "__main__":
+    FEATURE_SIZE = 20
+    duration = datetime.now()
+    start = 'result_' + str(FEATURE_SIZE) + '_' + time.strftime("%Y%m%d-%H%M%S")
+    print('#########################################################')
+    print('######## ' + str(start) + ' ########')
+    print('#########################################################')
     data_path = 'Data/'
+    biomarkers_path = data_path + 'biomarkers_lung.txt'
     path_luad = data_path + 'LUAD/TP - HTSeq - FPKM-UQ/'
     path_lusc = data_path + 'LUSC/TP - HTSeq - FPKM-UQ/'
     normal = 'solid tissue normal/'
@@ -292,10 +342,11 @@ if __name__ == "__main__":
     df_lusc_tumor = pd.read_pickle(path_lusc + tumor + 'data.pkl')
     df_lusc_tp = df_lusc_tumor.append(df_lusc_normal)  # Transcriptome Profiling
 
-    balancer = BalancingDataset()
+    os.makedirs(start)
 
+    balancer = BalancingDataset()
     # analyzer = Analysis(verbose=False)
-    analyzeData(df_tp, df_maf, df_test=df_lusc_tp, save=True, statisticsTest=False, featureSize=50)
+    analyzeData(df_tp, df_maf, df_test=df_lusc_tp, save=True, statisticsTest=True, featureSize=FEATURE_SIZE)
 
     # evaluateData(df_lusc_tp)
 
@@ -333,3 +384,9 @@ if __name__ == "__main__":
     # generator.SDAE(X_train.iloc[:, :4], X_test.iloc[:, :2], X_test.iloc[:, :2])
     # print(generator.fv_sdae_train.shape)
     # print(generator.fv_sdae_train)
+
+    print('#########################################################')
+    print('########### ' + str(datetime.now()) + ' ###########')
+    print('######## Duration: ' + str(datetime.now() - duration) + ' ########')
+    print('#########################################################')
+    winsound.Beep(540, 3000)

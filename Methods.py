@@ -3,7 +3,9 @@ import seaborn as sns
 import numpy as np
 from scipy import stats
 import pandas as pd
-
+from matplotlib_venn import venn2, venn2_circles
+from matplotlib_venn import venn3
+from matplotlib_venn_wordcloud import venn2_wordcloud
 from Analysis import Analysis
 
 
@@ -136,3 +138,42 @@ class Visualization:
 
         # return im, cbar
         return im
+
+    def venn2Diagram(self, set1: set, set2: set, labels=None):
+        if labels is None:
+            labels = ['Set1', 'Set2']
+        print('set1:', set1)
+        print('set2', set2)
+        venn = venn2([set1, set2], set_labels=labels)
+        venn.get_label_by_id('10').set_text('\n'.join(set1 - set2))
+        if venn.get_label_by_id('11') is not None:
+            venn.get_label_by_id('11').set_text('\n'.join(set1 & set2))
+        venn.get_label_by_id('01').set_text('\n'.join(set2 - set1))
+        c = venn2_circles([set1, set2], linestyle='solid')
+        return venn
+
+    def venn2DiagramWordCloud(self, set1: set, set2: set, labels=None):
+        if labels is None:
+            labels = ['Set1', 'Set2']
+        print('set1:', set1)
+        print('set2', set2)
+        venn = venn2_wordcloud([set1, set2], set_labels=labels)
+        venn.get_label_by_id('10').set_text('\n'.join(set1 - set2))
+        if venn.get_label_by_id('11') is not None:
+            venn.get_label_by_id('11').set_text('\n'.join(set1 & set2))
+        venn.get_label_by_id('01').set_text('\n'.join(set2 - set1))
+        # c = venn2_circles([set1, set2], linestyle='solid')
+        return venn
+
+    def venn3Diagram(self, set1: set, set2: set, set3: set, labels=None):
+        if labels is None:
+            labels = ['Set1', 'Set2', 'Set3']
+        venn = venn3([set1, set2, set3], set_labels=labels)
+        venn.get_label_by_id('100').set_text('\n'.join(set1 - set2 - set3))
+        venn.get_label_by_id('110').set_text('\n'.join(set1 & set2 - set3))
+        venn.get_label_by_id('010').set_text('\n'.join(set2 - set3 - set1))
+        venn.get_label_by_id('101').set_text('\n'.join(set1 & set3 - set2))
+        venn.get_label_by_id('111').set_text('\n'.join(set1 & set2 & set3))
+        venn.get_label_by_id('011').set_text('\n'.join(set2 & set3 - set1))
+        venn.get_label_by_id('001').set_text('\n'.join(set3 - set2 - set1))
+        return venn

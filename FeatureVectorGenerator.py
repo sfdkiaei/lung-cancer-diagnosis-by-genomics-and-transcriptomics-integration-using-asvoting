@@ -1,9 +1,9 @@
 from sklearn.decomposition import PCA
 from sklearn.decomposition import KernelPCA
 import numpy as np
-
-
+import mygene
 # from SDAE.sdae import StackedDenoisingAE
+from Methods import StatisticalTest
 
 
 class FeatureVectorGenerator:
@@ -22,6 +22,9 @@ class FeatureVectorGenerator:
         self.fv_maf_impact_low = None
         self.arr_train_maf_impact_low = None
         self.arr_test_maf_impact_low = None
+        self.fv_maf_integrated = None
+        self.arr_train_maf_integrated = None
+        self.arr_test_maf_integrated = None
         self.arr_train_pca = None
         self.arr_test_pca = None
         self.arr_train_kernel_pca = None
@@ -36,6 +39,7 @@ class FeatureVectorGenerator:
             'fv_maf_impact_high': self.fv_maf_impact_high,
             'fv_maf_impact_moderate': self.fv_maf_impact_moderate,
             'fv_maf_impact_low': self.fv_maf_impact_low,
+            'fv_maf_integrated': self.fv_maf_integrated,
             'fv_sdae_train': self.fv_sdae_train,
             'fv_sdae_val': self.fv_sdae_val,
             'fv_sdae_test': self.fv_sdae_test
@@ -56,6 +60,9 @@ class FeatureVectorGenerator:
             'maf_impact_low': {
                 'train': self.arr_train_maf_impact_low,
                 'test': self.arr_test_maf_impact_low},
+            'maf_integrated': {
+                'train': self.arr_train_maf_integrated,
+                'test': self.arr_test_maf_integrated},
             'pca': {
                 'train': self.arr_train_pca,
                 'test': self.arr_test_pca},
@@ -164,6 +171,73 @@ class FeatureVectorGenerator:
         self.arr_train_kernel_pca = transformer.fit_transform(X, y)
         self.arr_test_kernel_pca = transformer.transform(X_test)
         print('[KernelPCA] arr_test_kernel_pca created with shape:', self.arr_test_kernel_pca.shape)
+
+    def integrateMAFGenes(self, X_train, y_train, X_test, sample_num: int):
+        feature_vectors = {
+            'fv_maf_frequent': self.fv_maf_frequent,
+            'fv_maf_impact_high': self.fv_maf_impact_high,
+            'fv_maf_impact_moderate': self.fv_maf_impact_moderate,
+            'fv_maf_impact_low': self.fv_maf_impact_low
+        }
+        housekeepings = open('Data/genes_housekeeping.txt', 'r').read().split('\n')
+        fv_housekeeping = []
+        fv_housekeeping_symbol = []
+        for gene in housekeepings:
+            fv_housekeeping.append(gene.split(',')[1])  # Ensemble gene id
+            fv_housekeeping_symbol.append(gene.split(',')[0])  # gene symbol
+        st = StatisticalTest()
+        samples_tumor = X_train[y_train == True].sample(n=sample_num)
+        samples_normal = X_train[y_train == False].sample(n=sample_num)
+        pvalues = {}
+        for fv_name, fv_genes in feature_vectors.items():
+            fv_len = len(fv_genes)
+            pvalues[fv_name] = np.zeros((fv_len, len(fv_housekeeping)))
+            for i in range(fv_len):
+                for j in range(len(fv_housekeeping)):
+                    pvalue = st.tTest(
+                        samples_tumor.loc[:, fv_genes[i]].values.flatten().tolist(),
+                        samples_normal.loc[:, fv_housekeeping[j]].values.flatten().tolist()
+                    )
+                    pvalues[fv_name][i, j] = pvalue
+        fv_avg = []  # average p-value for each gene on 16 housekeeping genes
+        fv_avg_genes = []
+        for fv_name, fv_pvalue in pvalues.items():
+            rows = fv_pvalue.shape[0]
+            cols = fv_pvalue.shape[1]
+            for idx_driver in range(0, rows):
+                # pvalue_avg = np.average(fv_pvalue[idx_driver, :])
+                # pvalue_median = np.median(fv_pvalue[idx_driver, :])
+                fv_pvalue_temp = np.sort(fv_pvalue[idx_driver, :])
+                pvalue_avg = np.average(
+                    fv_pvalue_temp[:-4])  # average of housekeeping genes (except four greatest ones) p-value
+                fv_avg.append(pvalue_avg)
+                fv_avg_genes.append(feature_vectors[fv_name][idx_driver])
+
+        fv_avg = np.array(fv_avg)
+        fv_avg_genes = np.array(fv_avg_genes)
+        # print(fv_avg)
+        # print('######################################')
+        # Remove repeated ones and sort from smallest p-value ascending
+        _, fv_avg_distinct_indices = np.unique(fv_avg, return_index=True)
+        fv_avg = fv_avg[fv_avg_distinct_indices]
+        fv_avg_genes = fv_avg_genes[fv_avg_distinct_indices]
+        try:
+            smallest = fv_avg.argsort()[:fv_len]
+        except Exception as exp:
+            print('fv_avg size:', len(fv_avg), 'desired size:', fv_len)
+            print(type(exp), exp.args)
+        # print(smallest)
+        # print('######################################')
+        # print(fv_avg_genes[smallest])
+        # mg = mygene.MyGeneInfo()
+        # fv_avg_genes_symbol = mg.querymany(fv_avg_genes[smallest], scopes='ensembl.gene', fields='symbol',
+        #                                    as_dataframe=True).loc[:,
+        #                       'symbol'].values.flatten().tolist()
+        # print(fv_avg_genes_symbol)
+        self.fv_maf_integrated = fv_avg_genes[smallest]
+        self.arr_train_maf_integrated = X_train[self.fv_maf_integrated].values
+        self.arr_test_maf_integrated = X_test[self.fv_maf_integrated].values
+        print('[integrateMAFGenes] fv_maf_integrated created with size:', len(self.fv_maf_integrated))
 
     # def SDAE(self, X_train, X_test=None, X_validation=None, y=None, n_layers=2, n_hid=[10], dropout=[0.1], n_epoch=2,
     #          get_enc_model=False, write_model=False, dir_out='../output/'):

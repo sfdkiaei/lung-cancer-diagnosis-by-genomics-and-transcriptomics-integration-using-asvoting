@@ -226,7 +226,7 @@ class Analysis:
         mModel = Model()
         if model is None:
             kernel = 1.0 * RBF(1.0)
-            clf = GaussianProcessClassifier(kernel=kernel, random_state=110)
+            clf = GaussianProcessClassifier(kernel=kernel)
             clf.fit(X_train, y_train)
             mModel.model = clf
         else:
@@ -259,7 +259,7 @@ class Analysis:
     def RandomForestClassifier(self, X_train, X_test, y_train, y_test, model=None):
         mModel = Model()
         if model is None:
-            clf = RandomForestClassifier(max_depth=2, random_state=110)
+            clf = RandomForestClassifier(max_depth=2)
             clf.fit(X_train, y_train)
             mModel.model = clf
         else:
@@ -295,7 +295,7 @@ class Analysis:
     def MLPClassifier(self, X_train, X_test, y_train, y_test, model=None):
         mModel = Model()
         if model is None:
-            clf = MLPClassifier(solver='lbfgs', alpha=1e-5, hidden_layer_sizes=(500, 2), random_state=110)
+            clf = MLPClassifier(solver='lbfgs', alpha=1e-5, hidden_layer_sizes=(500, 2))
             clf.fit(X_train, y_train)
             mModel.model = clf
         else:
@@ -386,7 +386,7 @@ class Analysis:
     def GradientBoostingClassifier(self, X_train, X_test, y_train, y_test, model=None):
         mModel = Model()
         if model is None:
-            clf = GradientBoostingClassifier(n_estimators=100, learning_rate=1.0, max_depth=1, random_state=110)
+            clf = GradientBoostingClassifier(n_estimators=100, learning_rate=1.0, max_depth=1)
             clf.fit(X_train, y_train)
             mModel.model = clf
         else:
