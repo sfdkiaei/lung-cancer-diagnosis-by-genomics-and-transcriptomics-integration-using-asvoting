@@ -86,7 +86,30 @@ def final_merge(classifier_selected):
     df.to_csv(out_file)
 
 
+def get_most_consistent_genes():
+    out_file = 'selected_genes_info.csv'
+    files = []
+    genes = {}
+    for fs in FEATURE_SIZEs:
+        files += glob.glob('result_' + str(fs) + '_*/fv_maf_*.txt')
+    for file in files:
+        with open(file) as f:
+            lines = f.readlines()
+            for line in lines:
+                gene = line.split(',')[1].strip()
+                if gene not in genes:
+                    genes[gene] = 0
+                genes[gene] += 1
+    print(genes)
+    df = pd.DataFrame.from_dict(genes, orient="index")
+    df.columns = ['count']
+    df.to_csv(out_file)
+    genes = sorted(genes.items(), key=lambda x: x[1], reverse=True)
+    print(genes)
+
+
 FEATURE_SIZEs = [5, 10, 20, 30, 40, 50, 75, 100, 200]
 # for s in FEATURE_SIZEs:
 #     merge(s)
-final_merge('Custom Voting')
+# final_merge('Custom Voting')
+# get_most_consistent_genes()
