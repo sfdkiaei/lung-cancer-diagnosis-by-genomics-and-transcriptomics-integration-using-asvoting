@@ -11,3 +11,4 @@ Data/*.pkl
 *.png
 .idea/*
 SDAE
+__pycache__/*
