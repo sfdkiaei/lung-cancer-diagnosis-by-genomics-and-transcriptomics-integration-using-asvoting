@@ -29,6 +29,9 @@ class FeatureVectorGenerator:
         self.arr_test_pca = None
         self.arr_train_kernel_pca = None
         self.arr_test_kernel_pca = None
+        self.fv_biomarker = None
+        self.arr_train_biomarker = None
+        self.arr_test_biomarker = None
         self.fv_sdae_train = None
         self.fv_sdae_val = None
         self.fv_sdae_test = None
@@ -40,6 +43,7 @@ class FeatureVectorGenerator:
             'fv_maf_impact_moderate': self.fv_maf_impact_moderate,
             'fv_maf_impact_low': self.fv_maf_impact_low,
             'fv_maf_integrated': self.fv_maf_integrated,
+            'fv_biomarker': self.fv_biomarker,
             'fv_sdae_train': self.fv_sdae_train,
             'fv_sdae_val': self.fv_sdae_val,
             'fv_sdae_test': self.fv_sdae_test
@@ -69,6 +73,9 @@ class FeatureVectorGenerator:
             'kernel_pca': {
                 'train': self.arr_train_kernel_pca,
                 'test': self.arr_test_kernel_pca},
+            'biomarker': {
+                'train': self.arr_train_biomarker,
+                'test': self.arr_test_biomarker},
         }
         return arr
 
@@ -238,6 +245,23 @@ class FeatureVectorGenerator:
         self.arr_train_maf_integrated = X_train[self.fv_maf_integrated].values
         self.arr_test_maf_integrated = X_test[self.fv_maf_integrated].values
         print('[integrateMAFGenes] fv_maf_integrated created with size:', len(self.fv_maf_integrated))
+
+    def lungCancerBiomarkers(self, X_train, X_test):
+        """
+        :return:
+        """
+        genes = []
+        with open('Data/biomarkers_lung.txt', 'r', encoding='utf8') as f:
+            for line in f:
+                if not line.startswith('#'):
+                    genes.append(line.split(',')[1].strip())  # get Entrez gene id
+        print(genes)
+
+        self.fv_biomarker = genes
+        self.arr_train_biomarker = X_train[genes].values
+        self.arr_test_biomarker = X_test[genes].values
+
+        print('[lungCancerBiomarkers] fv_biomarker created with size:', len(self.fv_biomarker))
 
     # def SDAE(self, X_train, X_test=None, X_validation=None, y=None, n_layers=2, n_hid=[10], dropout=[0.1], n_epoch=2,
     #          get_enc_model=False, write_model=False, dir_out='../output/'):

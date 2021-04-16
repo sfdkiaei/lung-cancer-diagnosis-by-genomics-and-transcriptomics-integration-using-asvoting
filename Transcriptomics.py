@@ -238,6 +238,7 @@ def analyzeData(df_tp, df_maf, df_test=None, normalize=True, save=False, statist
     generator.PCA(X_train, y_train, X_test, featureSize)
     generator.KernelPCA(X_train, y_train, X_test, featureSize, "rbf")
     generator.integrateMAFGenes(X_train, y_train, X_test, sample_num=40)
+    generator.lungCancerBiomarkers(X_train, X_test)
 
     if statisticsTest:
         feature_vectors = generator.getFeatureVectors()
@@ -246,7 +247,7 @@ def analyzeData(df_tp, df_maf, df_test=None, normalize=True, save=False, statist
             biomarkers = []
             for line in lines:
                 if not line.startswith('#') and len(line) > 0:
-                    biomarkers.append(line.strip())
+                    biomarkers.append(line.split(',')[0].strip())  # example line: EGFR,ENSG00000146648
         runStatisticsTest(X_test, y_test, feature_vectors, statisticsTestSampleNum, biomarkers=biomarkers)
     getDifferentiallyExpressedGenes(X_test, y_test, sample_num=40, genes_count=FEATURE_SIZE)
 
