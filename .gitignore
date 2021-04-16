@@ -9,3 +9,5 @@ Data/*.pkl
 *.zip
 *.csv
 *.png
+.idea/*
+SDAE
