@@ -187,15 +187,15 @@ def runStatisticsTest(X, y, feature_vectors, sample_num: int, biomarkers: list =
             # save each feature vector genes
             with open(str(start) + '/' + feature_vector + '.txt', 'w') as f:
                 for i in range(len(fv_symbol)):
-                    f.write(fv[i] + ',' + fv_symbol[i] + '\n')
+                    f.write(str(fv[i]) + ',' + str(fv_symbol[i]) + '\n')
 
-            if biomarkers is not None and len(biomarkers) > 0:
-                labels = [feature_vector, 'biomarker']
-                visualization.venn2Diagram(set(fv_symbol), set(biomarkers), labels)
-                fig.tight_layout()
-                plt.savefig(str(start) + '/' + feature_vector + '_venn' + '.png')
-                plt.show()
-                plt.close()
+            # if biomarkers is not None and len(biomarkers) > 0:
+            #     labels = [feature_vector, 'biomarker']
+            #     visualization.venn2Diagram(set(fv_symbol), set(biomarkers), labels)
+            #     fig.tight_layout()
+            #     plt.savefig(str(start) + '/' + feature_vector + '_venn' + '.png')
+            #     plt.show()
+            #     plt.close()
 
 
 def splitData(df_tp, df_test=None, normalize=True):
@@ -238,7 +238,7 @@ def analyzeData(df_tp, df_maf, df_test=None, normalize=True, save=False, statist
     generator.PCA(X_train, y_train, X_test, featureSize)
     generator.KernelPCA(X_train, y_train, X_test, featureSize, "rbf")
     generator.integrateMAFGenes(X_train, y_train, X_test, sample_num=40)
-    generator.lungCancerBiomarkers(X_train, X_test)
+    # generator.lungCancerBiomarkers(X_train, X_test)
 
     if statisticsTest:
         feature_vectors = generator.getFeatureVectors()
@@ -301,7 +301,7 @@ def analyzeData(df_tp, df_maf, df_test=None, normalize=True, save=False, statist
 
 
 if __name__ == "__main__":
-    FEATURE_SIZE = 20
+    FEATURE_SIZE = 100
     duration = datetime.now()
     start = 'result_' + str(FEATURE_SIZE) + '_' + time.strftime("%Y%m%d-%H%M%S")
     print('#########################################################')

@@ -1,6 +1,7 @@
 import glob
 import pandas as pd
 import numpy as np
+from datetime import datetime
 
 
 def merge(feature_size):
@@ -56,9 +57,9 @@ def merge(feature_size):
 
 def final_merge(classifier_selected):
     files = glob.glob('final_results_*.csv')
-    out_file = 'results_feature_size.csv'
+    out_file = f'results_{classifier_selected}_feature_size_{datetime.now().date()}.csv'
     accuracy_sum = {}
-    c = 7
+    c = 7.0
     for filename in files:
         size = int(filename.split('.')[0].split('_')[-1])
         df = pd.read_csv(filename)
@@ -75,23 +76,25 @@ def final_merge(classifier_selected):
             # tnr = str(row[1]['TNR avg']) + ' ± ' + str(row[1]['TNR std'])
             # ppv = str(row[1]['PPV avg']) + ' ± ' + str(row[1]['PPV std'])
             accuracy = row[1]['ACC avg']
-            if classifier_selected == classifier:
-                # print(accuracy)
+            if classifier_selected == classifier and feature != 'biomarker':
                 accuracy_sum[size] += accuracy
+                # print(size, accuracy, accuracy_sum[size])
     for item in accuracy_sum:
         accuracy_sum[item] = np.round(accuracy_sum[item] / c, 2)
     # print(accuracy_sum)
     df = pd.DataFrame.from_dict(accuracy_sum, orient="index")
     df.columns = ['Accuracy']
     df.to_csv(out_file)
+    print(out_file, 'generated successfully')
 
 
 def get_most_consistent_genes():
-    out_file = 'selected_genes_info.csv'
+    out_file = f'selected_genes_info_{datetime.now().date()}.csv'
     files = []
     genes = {}
     for fs in FEATURE_SIZEs:
-        files += glob.glob('result_' + str(fs) + '_*/fv_maf_*.txt')
+        # files += glob.glob('result_' + str(fs) + '_*/fv_maf_*.txt')
+        files += glob.glob('result_' + str(fs) + '_*/fv_maf_integrated.txt')
     for file in files:
         with open(file) as f:
             lines = f.readlines()
@@ -108,8 +111,13 @@ def get_most_consistent_genes():
     print(genes)
 
 
-FEATURE_SIZEs = [5, 10, 20, 30, 40, 50, 75, 100, 200]
+FEATURE_SIZEs = [5, 10, 20, 30, 40, 50, 75, 100, 150, 200, 250, 300, 400, 500]
 # for s in FEATURE_SIZEs:
 #     merge(s)
 # final_merge('Custom Voting')
-# get_most_consistent_genes()
+
+# classifiers = ['Gaussian Process', 'Random Forest', 'MLP', 'Gradient Boosting', 'Non Linear SVM', 'Fuzzy Pattern', 'Fuzzy Pattern GA', 'MaxVoting', 'Custom Voting']
+# for item in classifiers:
+#     final_merge(item)
+
+get_most_consistent_genes()
