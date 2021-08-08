@@ -8,6 +8,7 @@ Data/*.json
 Data/*.pkl
 *.zip
 *.csv
+*.tsv
 *.png
 .idea/*
 SDAE

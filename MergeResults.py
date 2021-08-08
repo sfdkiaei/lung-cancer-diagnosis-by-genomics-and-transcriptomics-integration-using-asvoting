@@ -59,11 +59,15 @@ def final_merge(classifier_selected):
     files = glob.glob('final_results_*.csv')
     out_file = f'results_{classifier_selected}_feature_size_{datetime.now().date()}.csv'
     accuracy_sum = {}
+    tpr_sum = {}
+    tnr_sum = {}
     c = 7.0
     for filename in files:
         size = int(filename.split('.')[0].split('_')[-1])
         df = pd.read_csv(filename)
         accuracy_sum[size] = 0
+        tpr_sum[size] = 0
+        tnr_sum[size] = 0
         # data[size] = df
         for row in df.iterrows():
             name = row[1][0].replace('\'', '')
@@ -75,15 +79,23 @@ def final_merge(classifier_selected):
             # tpr = str(row[1]['TPR avg']) + ' ± ' + str(row[1]['TPR std'])
             # tnr = str(row[1]['TNR avg']) + ' ± ' + str(row[1]['TNR std'])
             # ppv = str(row[1]['PPV avg']) + ' ± ' + str(row[1]['PPV std'])
+            tpr = row[1]['TPR avg']
+            tnr = row[1]['TNR avg']
             accuracy = row[1]['ACC avg']
             if classifier_selected == classifier and feature != 'biomarker':
                 accuracy_sum[size] += accuracy
+                tpr_sum[size] += tpr
+                tnr_sum[size] += tnr
                 # print(size, accuracy, accuracy_sum[size])
     for item in accuracy_sum:
         accuracy_sum[item] = np.round(accuracy_sum[item] / c, 2)
+        tpr_sum[item] = np.round(tpr_sum[item] / c, 2)
+        tnr_sum[item] = np.round(tnr_sum[item] / c, 2)
     # print(accuracy_sum)
-    df = pd.DataFrame.from_dict(accuracy_sum, orient="index")
-    df.columns = ['Accuracy']
+    # df = pd.DataFrame.from_dict([accuracy_sum, tpr_sum, tnr_sum], orient="index")
+    df = pd.DataFrame([accuracy_sum, tpr_sum, tnr_sum]).T
+    df = df.sort_index()
+    df.columns = ['Accuracy', 'TPR', 'TNR']
     df.to_csv(out_file)
     print(out_file, 'generated successfully')
 
@@ -116,8 +128,9 @@ FEATURE_SIZEs = [5, 10, 20, 30, 40, 50, 75, 100, 150, 200, 250, 300, 400, 500]
 #     merge(s)
 # final_merge('Custom Voting')
 
-# classifiers = ['Gaussian Process', 'Random Forest', 'MLP', 'Gradient Boosting', 'Non Linear SVM', 'Fuzzy Pattern', 'Fuzzy Pattern GA', 'MaxVoting', 'Custom Voting']
-# for item in classifiers:
-#     final_merge(item)
+classifiers = ['Gaussian Process', 'Random Forest', 'MLP', 'Gradient Boosting', 'Non Linear SVM', 'Fuzzy Pattern',
+               'Fuzzy Pattern GA', 'MaxVoting', 'Custom Voting']
+for item in classifiers:
+    final_merge(item)
 
-get_most_consistent_genes()
+# get_most_consistent_genes()
