@@ -61,6 +61,11 @@ def final_merge(classifier_selected):
     accuracy_sum = {}
     tpr_sum = {}
     tnr_sum = {}
+    ppv_sum = {}
+    accuracy_std_sum = {}
+    tpr_std_sum = {}
+    tnr_std_sum = {}
+    ppv_std_sum = {}
     c = 7.0
     for filename in files:
         size = int(filename.split('.')[0].split('_')[-1])
@@ -68,6 +73,11 @@ def final_merge(classifier_selected):
         accuracy_sum[size] = 0
         tpr_sum[size] = 0
         tnr_sum[size] = 0
+        ppv_sum[size] = 0
+        accuracy_std_sum[size] = 0
+        tpr_std_sum[size] = 0
+        tnr_std_sum[size] = 0
+        ppv_std_sum[size] = 0
         # data[size] = df
         for row in df.iterrows():
             name = row[1][0].replace('\'', '')
@@ -81,21 +91,36 @@ def final_merge(classifier_selected):
             # ppv = str(row[1]['PPV avg']) + ' ± ' + str(row[1]['PPV std'])
             tpr = row[1]['TPR avg']
             tnr = row[1]['TNR avg']
+            ppv = row[1]['PPV avg']
             accuracy = row[1]['ACC avg']
+            tpr_std = row[1]['TPR std']
+            tnr_std = row[1]['TNR std']
+            ppv_std = row[1]['PPV std']
+            accuracy_std = row[1]['ACC std']
             if classifier_selected == classifier and feature != 'biomarker':
                 accuracy_sum[size] += accuracy
                 tpr_sum[size] += tpr
                 tnr_sum[size] += tnr
+                ppv_sum[size] += ppv
+                accuracy_std_sum[size] += accuracy_std
+                tpr_std_sum[size] += tpr_std
+                tnr_std_sum[size] += tnr_std
+                ppv_std_sum[size] += ppv_std
                 # print(size, accuracy, accuracy_sum[size])
     for item in accuracy_sum:
         accuracy_sum[item] = np.round(accuracy_sum[item] / c, 2)
         tpr_sum[item] = np.round(tpr_sum[item] / c, 2)
         tnr_sum[item] = np.round(tnr_sum[item] / c, 2)
+        ppv_sum[item] = np.round(ppv_sum[item] / c, 2)
+        accuracy_std_sum[item] = np.round(accuracy_std_sum[item] / c, 2)
+        tpr_std_sum[item] = np.round(tpr_std_sum[item] / c, 2)
+        tnr_std_sum[item] = np.round(tnr_std_sum[item] / c, 2)
+        ppv_std_sum[item] = np.round(ppv_std_sum[item] / c, 2)
     # print(accuracy_sum)
     # df = pd.DataFrame.from_dict([accuracy_sum, tpr_sum, tnr_sum], orient="index")
-    df = pd.DataFrame([accuracy_sum, tpr_sum, tnr_sum]).T
+    df = pd.DataFrame([accuracy_sum, tpr_sum, tnr_sum, ppv_sum, accuracy_std_sum, tpr_std_sum, tnr_std_sum, ppv_std_sum]).T
     df = df.sort_index()
-    df.columns = ['Accuracy', 'TPR', 'TNR']
+    df.columns = ['Accuracy', 'TPR', 'TNR', 'PPV', 'Accuracy std', 'TPR std', 'TNR std', 'PPV std']
     df.to_csv(out_file)
     print(out_file, 'generated successfully')
 
@@ -104,9 +129,11 @@ def get_most_consistent_genes():
     out_file = f'selected_genes_info_{datetime.now().date()}.csv'
     files = []
     genes = {}
+    # files = glob.glob('result_250*/fv_maf_integrated.txt')
     for fs in FEATURE_SIZEs:
-        # files += glob.glob('result_' + str(fs) + '_*/fv_maf_*.txt')
+        files += glob.glob('result_' + str(fs) + '_*/fv_maf_*.txt')
         files += glob.glob('result_' + str(fs) + '_*/fv_maf_integrated.txt')
+    print(files)
     for file in files:
         with open(file) as f:
             lines = f.readlines()
