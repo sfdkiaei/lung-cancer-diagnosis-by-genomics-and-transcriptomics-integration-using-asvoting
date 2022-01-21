@@ -16,6 +16,18 @@ from sklearn.metrics import roc_auc_score
 from sklearn import svm
 import numpy as np
 from datetime import datetime
+from disagree import metrics
+import pandas as pd
+import seaborn as sns
+import warnings
+import time
+from sklearn.neighbors import KNeighborsClassifier
+from sklearn.neighbors import NearestCentroid
+
+warnings.filterwarnings(action='once')
+
+plt.style.use('seaborn-whitegrid')
+sns.set_style("white")
 
 
 # from tpot import TPOTClassifier
@@ -47,6 +59,9 @@ class Analysis:
         self.nlsvm = None
         self.fpc = None
         self.fpcga = None
+        self.nn = None
+        self.knn = None
+        self.nc = None
         self.mv = None
         self.wmv = None
         self.custom_voting = None
@@ -60,6 +75,9 @@ class Analysis:
                   self.nlsvm,
                   self.fpc,
                   self.fpcga,
+                  self.nn,
+                  self.knn,
+                  self.nc,
                   self.mv,
                   self.wmv,
                   self.custom_voting]
@@ -105,7 +123,8 @@ class Analysis:
                     log_loss = round(model.log_loss, 2)
                 if model.cv_scores is not None:
                     cv_test_score_mean = round(model.cv_scores['test_score'].mean(), 4) * 100
-                    cv_test_score_std = round(model.cv_scores['test_score'].std() * 2, 4) * 100  # 95% Confidence Interval
+                    cv_test_score_std = round(model.cv_scores['test_score'].std() * 2,
+                                              4) * 100  # 95% Confidence Interval
                     cv_fit_time = round(model.cv_scores['fit_time'].mean(), 4)
                 #     print(model.cv_scores)
                 # print(cv_test_score_mean)
@@ -181,31 +200,46 @@ class Analysis:
                 FN += 1
 
         # Sensitivity, hit rate, recall, or true positive rate
-        TPR = TP / (TP + FN)
+        try:
+            TPR = TP / (TP + FN)
+        except:
+            TPR = 0
         # Specificity or true negative rate
-        TNR = TN / (TN + FP)
+        try:
+            TNR = TN / (TN + FP)
+        except:
+            TNR = 0
         # Precision or positive predictive value
         if TP + FP > 0:
             PPV = TP / (TP + FP)
         else:
-            PPV = -1
+            PPV = 0
         # Negative predictive value
         if TN + FN > 0:
             NPV = TN / (TN + FN)
         else:
-            NPV = -1
+            NPV = 0
         # Fall out or false positive rate
-        FPR = FP / (FP + TN)
+        try:
+            FPR = FP / (FP + TN)
+        except:
+            FPR = 0
         # False negative rate
-        FNR = FN / (TP + FN)
+        try:
+            FNR = FN / (TP + FN)
+        except:
+            FNR = 0
         # False discovery rate
         if TP + FP > 0:
             FDR = FP / (TP + FP)
         else:
-            FDR = -1
+            FDR = 0
 
         # Overall accuracy
-        ACC = (TP + TN) / (TP + FP + FN + TN)
+        try:
+            ACC = (TP + TN) / (TP + FP + FN + TN)
+        except:
+            ACC = 0
 
         return {
             'TPR': TPR,
@@ -221,6 +255,44 @@ class Analysis:
             'FDR': FDR,
             'ACC': ACC
         }
+
+    def diversityMeasuring(self, save_dir: str, name_prefix: str, FEATURE_SIZE: int):
+        models = self.getModels()
+        df = {}
+        samples = 0
+        for model in models:
+            if model is not None:
+                name = model.name
+                if model.name == 'MaxVoting' or model.name == 'Custom Voting':
+                    continue
+                df[model.name] = model.predicted
+                samples = len(model.predicted)
+        if samples == 0:
+            print("diversityMeasuring: No model exist")
+            return
+        df = pd.DataFrame(df)
+        labels = [0, 1]
+        mets = metrics.Metrics(df)
+        result = mets.metric_matrix(mets.cohens_kappa)
+        # print(f'Diversity Measure - FV:{name_prefix}, FS:{str(FEATURE_SIZE)}:')
+        # print(result)
+        # Plot
+        new_df = pd.DataFrame(result, columns=df.columns)
+        # plt.figure(figsize=(12, 10))
+        plt.figure()
+        ax = sns.heatmap(new_df.corr(), xticklabels=df.corr().columns, yticklabels=df.corr().columns, cmap='Blues',
+                         center=0, annot=True, vmin=-1, vmax=1, square=True, annot_kws={"fontsize": 7})
+        # Decorations
+        plt.title(f'Diversity Measure - FV:{name_prefix}, FS:{str(FEATURE_SIZE)}', fontsize=12)
+        plt.xticks(fontsize=10, rotation=90)
+        plt.yticks(fontsize=10, rotation=0)
+        bottom, top = ax.get_ylim()
+        ax.set_ylim(bottom + 0.5, top - 0.5)
+        plt.tight_layout()
+        plt.savefig(
+            save_dir + '/' + name_prefix + '_' + str(FEATURE_SIZE) + '.png')
+        plt.show()
+        plt.close()
 
     def GaussianProcessClassifier(self, X_train, X_test, y_train, y_test, model=None):
         mModel = Model()
@@ -517,6 +589,105 @@ class Analysis:
             #       % mModel.log_loss)
         return clf
 
+    def NearestNeighborClassifier(self, X_train, X_test, y_train, y_test, model=None):
+        mModel = Model()
+        if model is None:
+            clf = KNeighborsClassifier(n_neighbors=1, metric='euclidean')
+            clf.fit(X_train, y_train)
+            mModel.model = clf
+        else:
+            clf = model
+        mModel.name = "Nearest Neighbor"
+        scores = cross_validate(clf, X_train, y_train, cv=self.cv)  # ['test_score', 'fit_time', 'score_time']
+        start_time = datetime.now()
+        mModel.predicted = clf.predict(X_test)
+        mModel.time = round((datetime.now() - start_time).total_seconds() * 1000, 3)
+        mModel.predicted_proba = clf.predict_proba(X_test)
+        mModel.accuracy = accuracy_score(y_test, mModel.predicted)
+        mModel.log_loss = log_loss(y_test, mModel.predicted_proba)
+        probs = mModel.predicted_proba[:, 1]  # Keep Probabilities of the positive class only.
+        mModel.auc = roc_auc_score(y_test, probs)
+        mModel.measurements = self.getMeasurements(y_test, mModel.predicted)
+        mModel.cv_scores = scores
+        self.nn = mModel
+        if self.verbose:
+            print(mModel.name)
+            print("Accuracy (.95 CI): %0.4f (+/- %0.4f)"
+                  % (scores['test_score'].mean(), scores['test_score'].std() * 2))
+            print("Test Accuracy: %.4f"
+                  % mModel.accuracy)
+            # print("Test AUC: %.4f"
+            #       % mModel.auc)
+            # print("Log-loss: %.4f"
+            #       % mModel.log_loss)
+        return clf
+
+    def KNearestNeighborsClassifier(self, X_train, X_test, y_train, y_test, model=None):
+        mModel = Model()
+        if model is None:
+            clf = KNeighborsClassifier(n_neighbors=5, metric='minkowski')
+            clf.fit(X_train, y_train)
+            mModel.model = clf
+        else:
+            clf = model
+        mModel.name = "K-Nearest Neighbors"
+        scores = cross_validate(clf, X_train, y_train, cv=self.cv)  # ['test_score', 'fit_time', 'score_time']
+        start_time = datetime.now()
+        mModel.predicted = clf.predict(X_test)
+        mModel.time = round((datetime.now() - start_time).total_seconds() * 1000, 3)
+        mModel.predicted_proba = clf.predict_proba(X_test)
+        mModel.accuracy = accuracy_score(y_test, mModel.predicted)
+        mModel.log_loss = log_loss(y_test, mModel.predicted_proba)
+        probs = mModel.predicted_proba[:, 1]  # Keep Probabilities of the positive class only.
+        mModel.auc = roc_auc_score(y_test, probs)
+        mModel.measurements = self.getMeasurements(y_test, mModel.predicted)
+        mModel.cv_scores = scores
+        self.knn = mModel
+        if self.verbose:
+            print(mModel.name)
+            print("Accuracy (.95 CI): %0.4f (+/- %0.4f)"
+                  % (scores['test_score'].mean(), scores['test_score'].std() * 2))
+            print("Test Accuracy: %.4f"
+                  % mModel.accuracy)
+            # print("Test AUC: %.4f"
+            #       % mModel.auc)
+            # print("Log-loss: %.4f"
+            #       % mModel.log_loss)
+        return clf
+
+    def NearestCentroidClassifier(self, X_train, X_test, y_train, y_test, model=None):
+        mModel = Model()
+        if model is None:
+            clf = NearestCentroid(metric='euclidean')
+            clf.fit(X_train, y_train)
+            mModel.model = clf
+        else:
+            clf = model
+        mModel.name = "Nearest Centroid"
+        scores = cross_validate(clf, X_train, y_train, cv=self.cv)  # ['test_score', 'fit_time', 'score_time']
+        start_time = datetime.now()
+        mModel.predicted = clf.predict(X_test)
+        mModel.time = round((datetime.now() - start_time).total_seconds() * 1000, 3)
+        # mModel.predicted_proba = clf.predict_proba(X_test)
+        mModel.accuracy = accuracy_score(y_test, mModel.predicted)
+        # mModel.log_loss = log_loss(y_test, mModel.predicted_proba)
+        # probs = mModel.predicted_proba[:, 1]  # Keep Probabilities of the positive class only.
+        # mModel.auc = roc_auc_score(y_test, probs)
+        mModel.measurements = self.getMeasurements(y_test, mModel.predicted)
+        mModel.cv_scores = scores
+        self.nc = mModel
+        if self.verbose:
+            print(mModel.name)
+            print("Accuracy (.95 CI): %0.4f (+/- %0.4f)"
+                  % (scores['test_score'].mean(), scores['test_score'].std() * 2))
+            print("Test Accuracy: %.4f"
+                  % mModel.accuracy)
+            # print("Test AUC: %.4f"
+            #       % mModel.auc)
+            # print("Log-loss: %.4f"
+            #       % mModel.log_loss)
+        return clf
+
     def maxVoting(self, y_test):
         mModel = Model()
         result = []
@@ -644,8 +815,11 @@ class Analysis:
                 #         sum += predictions_tnr_sorted[m]['TPR']
                 #     else:
                 #         sum -= predictions_tnr_sorted[m]['TNR']
-            sum /= count
-            result.append(sum >= 1)
+            try:
+                sum /= count
+                result.append(sum >= 1)
+            except:
+                result.append("NA")
             # if result[sample_idx] != y_test[sample_idx]:
             #     print('predicted:', result[sample_idx], 'sum:', sum, 'actual:', y_test[sample_idx], '\n')
             # else:

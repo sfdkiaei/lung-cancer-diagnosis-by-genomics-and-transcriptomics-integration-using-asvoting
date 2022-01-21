@@ -2,11 +2,12 @@ import glob
 import pandas as pd
 import numpy as np
 from datetime import datetime
+import re
 
 
 def merge(feature_size):
     FEATURE_SIZE = feature_size
-    folders = glob.glob('result_' + str(FEATURE_SIZE) + '_*')
+    folders = glob.glob('NewResults/result6_' + str(FEATURE_SIZE) + '_*')
     out_file = 'final_results_' + str(FEATURE_SIZE) + '.csv'
     size = 0
 
@@ -118,21 +119,22 @@ def final_merge(classifier_selected):
         ppv_std_sum[item] = np.round(ppv_std_sum[item] / c, 2)
     # print(accuracy_sum)
     # df = pd.DataFrame.from_dict([accuracy_sum, tpr_sum, tnr_sum], orient="index")
-    df = pd.DataFrame([accuracy_sum, tpr_sum, tnr_sum, ppv_sum, accuracy_std_sum, tpr_std_sum, tnr_std_sum, ppv_std_sum]).T
+    df = pd.DataFrame(
+        [accuracy_sum, tpr_sum, tnr_sum, ppv_sum, accuracy_std_sum, tpr_std_sum, tnr_std_sum, ppv_std_sum]).T
     df = df.sort_index()
     df.columns = ['Accuracy', 'TPR', 'TNR', 'PPV', 'Accuracy std', 'TPR std', 'TNR std', 'PPV std']
     df.to_csv(out_file)
     print(out_file, 'generated successfully')
 
 
-def get_most_consistent_genes():
+def get_most_consistent_genes(feature_sizes: list):
     out_file = f'selected_genes_info_{datetime.now().date()}.csv'
     files = []
     genes = {}
     # files = glob.glob('result_250*/fv_maf_integrated.txt')
-    for fs in FEATURE_SIZEs:
-        files += glob.glob('result_' + str(fs) + '_*/fv_maf_*.txt')
-        files += glob.glob('result_' + str(fs) + '_*/fv_maf_integrated.txt')
+    for fs in feature_sizes:
+        # files += glob.glob('result_' + str(fs) + '_*/fv_maf_*.txt')
+        files += glob.glob('NewResults/result6_' + str(fs) + '_*/fv_maf_integrated.txt')
     print(files)
     for file in files:
         with open(file) as f:
@@ -150,14 +152,52 @@ def get_most_consistent_genes():
     print(genes)
 
 
+def merge_asvoting_thresholds():
+    out_file = f'ASVoting_Thresholds_{datetime.now().date()}.csv'
+    files = glob.glob('ASVoting_th_*.txt')
+    c = 4.0
+    print(files)
+
+    acc_mean = {}
+    result = []
+    for file in files:
+        feature_size = file.split('_')[2]
+        m = re.search('ASVoting_th_(.+?)_(.+?)_2021*', file)
+        if m:
+            feature_vector = m.group(2)
+        else:
+            feature_vector = file
+        if not feature_vector in acc_mean:
+            acc_mean[feature_vector] = []
+        with open(file) as f:
+            lines = f.readlines()
+            for line in lines[1:]:
+                line_split = line.split(',')
+                threshold = line_split[0]
+                accuracy = line_split[1]
+                tpr = line_split[2]
+                tnr = line_split[3]
+                ppv = line_split[4]
+                f1score = line_split[5]
+                result.append([feature_vector, feature_size, threshold, accuracy, tpr, tnr, ppv, f1score])
+
+    df = pd.DataFrame(result)
+    df = df.sort_index()
+    df.columns = ['Feature Vector', 'Feature Size', 'Threshold', 'Accuracy', 'Sensitivity', 'Specificity', 'Precision',
+                  'F1-Score']
+    df.to_csv(out_file)
+
+
 FEATURE_SIZEs = [5, 10, 20, 30, 40, 50, 75, 100, 150, 200, 250, 300, 400, 500]
 # for s in FEATURE_SIZEs:
 #     merge(s)
-# final_merge('Custom Voting')
+# # final_merge('Custom Voting')
+#
+# classifiers = ['Gaussian Process', 'Random Forest', 'MLP', 'Gradient Boosting', 'Non Linear SVM', 'Fuzzy Pattern',
+#                'Fuzzy Pattern GA', 'Nearest Neighbor', 'K-Nearest Neighbors', 'MaxVoting', 'Custom Voting']
+# for item in classifiers:
+#     final_merge(item)
 
-classifiers = ['Gaussian Process', 'Random Forest', 'MLP', 'Gradient Boosting', 'Non Linear SVM', 'Fuzzy Pattern',
-               'Fuzzy Pattern GA', 'MaxVoting', 'Custom Voting']
-for item in classifiers:
-    final_merge(item)
+get_most_consistent_genes(feature_sizes=[100, 150, 200, 250, 300, 400, 500])
 
-# get_most_consistent_genes()
+# merge_asvoting_thresholds()

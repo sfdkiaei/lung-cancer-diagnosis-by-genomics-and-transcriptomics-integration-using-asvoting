@@ -28,6 +28,33 @@ plt.style.use('ggplot')
 np.random.seed(110)
 
 
+# TODO
+# def entrezIdToGeneSymbol(ram: {}, fv_entrez_id: []):
+#     if entrez_id in ram:
+#         return ram[entrez_id]
+#     else:
+#         mg = mygene.MyGeneInfo()
+#         fv_symbol = mg.querymany(fv, scopes='ensembl.gene', fields='symbol', as_dataframe=True).loc[:,
+#                     'symbol'].values.flatten().tolist()
+#         ram[entrez_id] = fv_symbol
+#         update_entrez_mapper(entrez_id, fv_symbol)
+#         return fv_symbol
+#
+#
+# def load_entrez_mapper_in_ram():
+#     ram: {}
+#     with open(filepath, 'r') as f:
+#         for line in f.readlines():
+#             line_split = line.split('*')
+#             ram[line_split[0]] = line_split[1]
+#     return ram
+#
+#
+# def update_entrez_mapper(entrez_id, gene_symbol):
+#     with open(filepath, 'a') as f:
+#         f.write(f'\n{entrez_id}*{gene_symbol}')
+
+
 def createSampleDataFrame(files_exp, save=False, save_name="fullData", is_tumor=None):
     """
     Merge all transcriptome profiling data in one dataFrame and save them as .pkl file
@@ -148,7 +175,7 @@ def getDifferentiallyExpressedGenes(X: pd.DataFrame, y, sample_num: int = 40, ge
             f.write(str(gene) + ',' + str(pvalues_sorted[gene]) + '\n')
 
 
-def runStatisticsTest(X, y, feature_vectors, sample_num: int, biomarkers: list = None):
+def runStatisticsTest(X, y, feature_vectors, sample_num: int, start: str, biomarkers: list = None):
     center = 0.05
     housekeepings = open('Data/genes_housekeeping.txt', 'r').read().split('\n')
     fv_housekeeping = []
@@ -174,15 +201,15 @@ def runStatisticsTest(X, y, feature_vectors, sample_num: int, biomarkers: list =
                         samples_normal.loc[:, fv_housekeeping[j]].values.flatten().tolist()
                     )
                     pvalues[i, j] = pvalue
-            fig, ax = plt.subplots(figsize=(7, 12))
-            visualization = Visualization()
-            im = visualization.heatmap(pvalues, fv_symbol, fv_housekeeping_symbol, ax=ax,
-                                       cmap="plasma", cbarlabel="P-Value", center=center)
-            plt.title(feature_vector)
-            fig.tight_layout()
-            plt.savefig(str(start) + '/' + feature_vector + '-pvalue_' + str(center) + '.png')
-            plt.show()
-            plt.close()
+            # fig, ax = plt.subplots(figsize=(7, 12))
+            # visualization = Visualization()
+            # im = visualization.heatmap(pvalues, fv_symbol, fv_housekeeping_symbol, ax=ax,
+            #                            cmap="plasma", cbarlabel="P-Value", center=center)
+            # plt.title(feature_vector)
+            # fig.tight_layout()
+            # plt.savefig(str(start) + '/' + feature_vector + '-pvalue_' + str(center) + '.png')
+            # plt.show()
+            # plt.close()
 
             # save each feature vector genes
             with open(str(start) + '/' + feature_vector + '.txt', 'w') as f:
@@ -198,12 +225,13 @@ def runStatisticsTest(X, y, feature_vectors, sample_num: int, biomarkers: list =
             #     plt.close()
 
 
-def splitData(df_tp, df_test=None, normalize=True):
+def splitData(df_tp, df_test=None, normalize=True, oversampling_train_data=True):
     print('Splitting data...')
     X = df_tp.iloc[:, :-1]
     y = df_tp.iloc[:, -1]
-    print('Over Sampling data...')
-    X, y = balancer.overSampling(X, y, 'ADASYN')
+    if oversampling_train_data:
+        print('Over Sampling data...')
+        X, y = balancer.overSampling(X, y, 'ADASYN')
     if normalize:
         print('Normalizing data...')
         min_max_scaler = preprocessing.MinMaxScaler()
@@ -229,84 +257,157 @@ def splitData(df_tp, df_test=None, normalize=True):
     return X_train, X_test, y_train, y_test, cv
 
 
-def analyzeData(df_tp, df_maf, df_test=None, normalize=True, save=False, statisticsTest=False,
-                statisticsTestSampleNum=40, featureSize=50):
+def analyzeData(df_tp, df_maf, featureSize, df_test=None, normalize=True, save=False, statisticsTest=False,
+                statisticsTestSampleNum=40):
     X_train, X_test, y_train, y_test, cv = splitData(df_tp, df_test, normalize=normalize)
+    # X_train, X_test, y_train, y_test, cv = splitData(df_tp, df_test, oversampling_train_data=False, normalize=False)
+
+    if isinstance(featureSize, int):
+        featureSize = [featureSize]
+
+    for fs in featureSize:
+        start = 'NewResults/result6_' + str(fs) + '_' + time.strftime("%Y%m%d-%H%M%S")
+        print('#########################################################')
+        print('######## ' + str(start) + ' ########')
+        print('#########################################################')
+        os.makedirs(start)
+
+        generator = FeatureVectorGenerator()
+        generator.MAFGenes(X_train, y_train, X_test, df_maf, size=fs)
+        generator.PCA(X_train, y_train, X_test, fs)
+        generator.KernelPCA(X_train, y_train, X_test, fs, "rbf")
+        generator.integrateMAFGenes(X_train, y_train, X_test, sample_num=40)
+        # generator.lungCancerBiomarkers(X_train, X_test)
+
+        if statisticsTest:
+            feature_vectors = generator.getFeatureVectors()
+            with open(biomarkers_path, encoding='utf-8') as f:
+                lines = f.readlines()
+                biomarkers = []
+                for line in lines:
+                    if not line.startswith('#') and len(line) > 0:
+                        biomarkers.append(line.split(',')[0].strip())  # example line: EGFR,ENSG00000146648
+            runStatisticsTest(X_test, y_test, feature_vectors, statisticsTestSampleNum, biomarkers=biomarkers, start=start)
+        # getDifferentiallyExpressedGenes(X_test, y_test, sample_num=40, genes_count=FEATURE_SIZE)
+
+        result = []
+        for key, value in tqdm(generator.getArrays().items()):
+            if value['train'] is not None:
+                # print('----------------', 'Feature Vector:', key)
+                analyzer = Analysis(cv, verbose=False)
+                model_gpc = analyzer.GaussianProcessClassifier(value['train'], value['test'], y_train, y_test)
+                model_rfc = analyzer.RandomForestClassifier(value['train'], value['test'], y_train, y_test)
+                model_gbc = analyzer.GradientBoostingClassifier(value['train'], value['test'], y_train, y_test)
+                model_mlp = analyzer.MLPClassifier(value['train'], value['test'], y_train, y_test)
+                model_nlsvm = analyzer.NonLinearSVMClassifier(value['train'], value['test'], y_train, y_test)
+                model_fpc = analyzer.FuzzyPatternClassifier(value['train'], value['test'], y_train, y_test)
+                model_fpcga = analyzer.FuzzyPatternClassifierGA(value['train'], value['test'], y_train, y_test)
+                model_nn = analyzer.NearestNeighborClassifier(value['train'], value['test'], y_train, y_test)
+                model_knn = analyzer.KNearestNeighborsClassifier(value['train'], value['test'], y_train, y_test)
+                # model_nc = analyzer.NearestCentroidClassifier(value['train'], value['test'], y_train, y_test)
+                analyzer.maxVoting(y_test)
+                # # analyzer.weightedMaxVoting(y_test, [1, 1, 1, 1, 1, 1, 1])
+                analyzer.customVoting(y_test, size=5, threshold_tpr=0.6, threshold_tnr=0.6)
+
+                # if save:
+                #     analyzer.saveModel(model_gpc, 'GaussianProcessClassifier')
+                #     analyzer.saveModel(model_rfc, 'RandomForestClassifier')
+                #     analyzer.saveModel(model_gbc, 'GradientBoostingClassifier')
+                #     analyzer.saveModel(model_mlp, 'MLPClassifier')
+                #     analyzer.saveModel(model_nlsvm, 'NonLinearSVMClassifier')
+                #     analyzer.saveModel(model_fpc, 'FuzzyPatternClassifier')
+                #     analyzer.saveModel(model_fpcga, 'FuzzyPatternClassifierGA')
+                #     analyzer.saveModel(model_nn, 'NearestNeighborClassifier')
+                #     analyzer.saveModel(model_knn, 'KNearestNeighborsClassifier')
+                #     analyzer.saveModel(model_nc, 'Nearest CentroidClassifier')
+                for classifier, score in analyzer.getAccuracies().items():
+                    if score['Acc'] is not None:
+                        result.append([key, classifier] + [value for value in score.values()])
+                        columns = list(score.keys())
+                analyzer.diversityMeasuring(save_dir=str(start), name_prefix=key, FEATURE_SIZE=fs)
+        columns = ['Feature Vector', 'Classifier'] + columns
+        result = pd.DataFrame(result, columns=columns
+                              #  ['Feature Vector', 'Classifier',
+                              # 'Accuracy',
+                              # 'AUC',
+                              # 'Sensitivity(TPR)',
+                              # 'Specificity(TNR)',
+                              # 'Precision(PPV)',
+                              # 'Log Loss',
+                              # '[CV] Test Score - mean',
+                              # '[CV] Test Score - .95 CI',
+                              # '[CV] Fit Time'
+                              # ]
+                              )
+        # print(result)
+        if save:
+            # timestr = time.strftime("%Y%m%d-%H%M%S")
+            # result.to_csv("result_" + timestr + ".csv")
+            result.to_excel(str(start) + "/results.xlsx")
+
+
+def analyzeThresholds(df_tp, df_maf, df_test, normalize=True, featureSize=50):
+    step = 0.02
+    thresholds = np.arange(0, 1 + step, step)
+
+    # _, _, _, y_test, cv = splitData(df_tp, df_test, normalize=normalize, oversampling_train_data=False)
+    X_train, X_test, y_train, y_test, cv = splitData(df_tp, df_test, normalize=normalize, oversampling_train_data=True)
 
     generator = FeatureVectorGenerator()
     generator.MAFGenes(X_train, y_train, X_test, df_maf, size=featureSize)
     generator.PCA(X_train, y_train, X_test, featureSize)
     generator.KernelPCA(X_train, y_train, X_test, featureSize, "rbf")
     generator.integrateMAFGenes(X_train, y_train, X_test, sample_num=40)
-    # generator.lungCancerBiomarkers(X_train, X_test)
 
-    if statisticsTest:
-        feature_vectors = generator.getFeatureVectors()
-        with open(biomarkers_path, encoding='utf-8') as f:
-            lines = f.readlines()
-            biomarkers = []
-            for line in lines:
-                if not line.startswith('#') and len(line) > 0:
-                    biomarkers.append(line.split(',')[0].strip())  # example line: EGFR,ENSG00000146648
-        runStatisticsTest(X_test, y_test, feature_vectors, statisticsTestSampleNum, biomarkers=biomarkers)
-    getDifferentiallyExpressedGenes(X_test, y_test, sample_num=40, genes_count=FEATURE_SIZE)
+    data = [
+        ['maf_integrated',
+         generator.arr_train_maf_integrated,
+         generator.arr_test_maf_integrated],
+        ['maf_frequent',
+         generator.arr_train_maf_frequent,
+         generator.arr_test_maf_frequent],
+        ['pca',
+         generator.arr_train_pca,
+         generator.arr_test_pca],
+        ['kernel_pca',
+         generator.arr_train_kernel_pca,
+         generator.arr_test_kernel_pca],
+    ]
+    analyzer = Analysis(cv, verbose=False)
+    for d in data:
+        arr_train = d[1]
+        arr_test = d[2]
+        print('Training models...')
+        model_gpc = analyzer.GaussianProcessClassifier(arr_train, arr_test, y_train, y_test)
+        model_rfc = analyzer.RandomForestClassifier(arr_train, arr_test, y_train, y_test)
+        model_gbc = analyzer.GradientBoostingClassifier(arr_train, arr_test, y_train, y_test)
+        model_mlp = analyzer.MLPClassifier(arr_train, arr_test, y_train, y_test)
+        model_nlsvm = analyzer.NonLinearSVMClassifier(arr_train, arr_test, y_train, y_test)
+        model_fpc = analyzer.FuzzyPatternClassifier(arr_train, arr_test, y_train, y_test)
+        model_fpcga = analyzer.FuzzyPatternClassifierGA(arr_train, arr_test, y_train, y_test)
 
-    result = []
-    for key, value in tqdm(generator.getArrays().items()):
-        if value['train'] is not None:
-            # print('----------------', 'Feature Vector:', key)
-            analyzer = Analysis(cv, verbose=False)
-            model_gpc = analyzer.GaussianProcessClassifier(value['train'], value['test'], y_train, y_test)
-            model_rfc = analyzer.RandomForestClassifier(value['train'], value['test'], y_train, y_test)
-            model_gbc = analyzer.GradientBoostingClassifier(value['train'], value['test'], y_train, y_test)
-            model_mlp = analyzer.MLPClassifier(value['train'], value['test'], y_train, y_test)
-            model_nlsvm = analyzer.NonLinearSVMClassifier(value['train'], value['test'], y_train, y_test)
-            model_fpc = analyzer.FuzzyPatternClassifier(value['train'], value['test'], y_train, y_test)
-            model_fpcga = analyzer.FuzzyPatternClassifierGA(value['train'], value['test'], y_train, y_test)
-            analyzer.maxVoting(y_test)
-            # analyzer.weightedMaxVoting(y_test, [1, 1, 1, 1, 1, 1, 1])
-            analyzer.customVoting(y_test, size=5, threshold_tpr=0.6, threshold_tnr=0.6)
+        # analyzer.customVoting(y_test, size=5, threshold_tpr=0.6, threshold_tnr=0.6)
 
-            if save:
-                analyzer.saveModel(model_gpc, 'GaussianProcessClassifier')
-                analyzer.saveModel(model_rfc, 'RandomForestClassifier')
-                analyzer.saveModel(model_gbc, 'GradientBoostingClassifier')
-                analyzer.saveModel(model_mlp, 'MLPClassifier')
-                analyzer.saveModel(model_nlsvm, 'NonLinearSVMClassifier')
-                analyzer.saveModel(model_fpc, 'FuzzyPatternClassifier')
-                analyzer.saveModel(model_fpcga, 'FuzzyPatternClassifierGA')
-            for classifier, score in analyzer.getAccuracies().items():
-                if score['Acc'] is not None:
-                    result.append([key, classifier] + [value for value in score.values()])
-                    columns = list(score.keys())
-    columns = ['Feature Vector', 'Classifier'] + columns
-    result = pd.DataFrame(result, columns=columns
-                          #  ['Feature Vector', 'Classifier',
-                          # 'Accuracy',
-                          # 'AUC',
-                          # 'Sensitivity(TPR)',
-                          # 'Specificity(TNR)',
-                          # 'Precision(PPV)',
-                          # 'Log Loss',
-                          # '[CV] Test Score - mean',
-                          # '[CV] Test Score - .95 CI',
-                          # '[CV] Fit Time'
-                          # ]
-                          )
-    # print(result)
-    if save:
-        # timestr = time.strftime("%Y%m%d-%H%M%S")
-        # result.to_csv("result_" + timestr + ".csv")
-        result.to_excel(str(start) + "/results.xlsx")
+        with open('ASVoting_th_' + str(FEATURE_SIZE) + '_' + d[0] + '_' + time.strftime("%Y%m%d-%H%M%S") + '.txt',
+                  'w') as f:
+            f.write('Threshold,Accuracy,Sensitivity,Specificity,Precision,F1-Score\n')
+            for th in thresholds:
+                analyzer.customVoting(y_test, size=5, threshold_tpr=th, threshold_tnr=th)
+                for classifier, score in analyzer.getAccuracies().items():
+                    if classifier == "Custom Voting":
+                        print(th, score)
+                        f1score = 2 * score["TPR"] * score["PPV"] / (score["TPR"] + score["PPV"])
+                        f.write(f'{th},{score["Acc"]},{score["TPR"]},{score["TNR"]},{score["PPV"]},{f1score}\n')
 
 
 if __name__ == "__main__":
-    FEATURE_SIZE = 100
+    FEATURE_SIZE = [5, 10, 20, 30, 40, 50, 75, 100, 150, 200, 250, 300, 400, 500]
     duration = datetime.now()
-    start = 'result_' + str(FEATURE_SIZE) + '_' + time.strftime("%Y%m%d-%H%M%S")
-    print('#########################################################')
-    print('######## ' + str(start) + ' ########')
-    print('#########################################################')
+    # start = 'NewResults/result6_' + str(FEATURE_SIZE) + '_' + time.strftime("%Y%m%d-%H%M%S")
+    # start_list = ['NewResults/result6_' + str(fs) + '_' + time.strftime("%Y%m%d-%H%M%S") for fs in FEATURE_SIZE]
+    # print('#########################################################')
+    # print('######## ' + str(start) + ' ########')
+    # print('#########################################################')
     data_path = 'Data/'
     biomarkers_path = data_path + 'biomarkers_lung.txt'
     path_luad = data_path + 'LUAD/TP - HTSeq - FPKM-UQ/'
@@ -343,11 +444,13 @@ if __name__ == "__main__":
     df_lusc_tumor = pd.read_pickle(path_lusc + tumor + 'data.pkl')
     df_lusc_tp = df_lusc_tumor.append(df_lusc_normal)  # Transcriptome Profiling
 
-    os.makedirs(start)
+    # os.makedirs(start)
 
     balancer = BalancingDataset()
     # analyzer = Analysis(verbose=False)
+
     analyzeData(df_tp, df_maf, df_test=df_lusc_tp, save=True, statisticsTest=True, featureSize=FEATURE_SIZE)
+    # analyzeThresholds(df_tp=df_tp, df_maf=df_maf, df_test=df_lusc_tp, featureSize=FEATURE_SIZE)
 
     # evaluateData(df_lusc_tp)
 
@@ -390,4 +493,4 @@ if __name__ == "__main__":
     print('########### ' + str(datetime.now()) + ' ###########')
     print('######## Duration: ' + str(datetime.now() - duration) + ' ########')
     print('#########################################################')
-    winsound.Beep(540, 3000)
+    winsound.Beep(540, 2000)
