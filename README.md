@@ -1,6 +1,20 @@
+<div align="center">
+  
+# Lung cancer diagnosis by genomics and transcriptomics integration using ASVoting
+
+</div>
+  
+## Introduction
+TODO
+
+## Installation Guide
+TODO
+
+## Contact us
+If you have any questions, comments or suggestions, please do not hesitate to contact sfdkiaei@gmail.com.
 
 
-# Citation
+## Citation
 If you use this code in your publications, please cite this paper:
 ```
 @article {
